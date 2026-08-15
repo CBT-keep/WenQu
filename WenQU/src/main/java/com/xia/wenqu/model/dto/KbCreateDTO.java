@@ -1,0 +1,26 @@
+package com.xia.wenqu.model.dto;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class KbCreateDTO {
+
+    @NotBlank(message = "知识库名称不能为空")
+    @Size(max = 50)
+    private String name;
+
+    @Size(max = 200)
+    private String description;
+
+    @Min(value = 200, message = "chunkSize 范围 200~800")
+    @Max(value = 800, message = "chunkSize 范围 200~800")
+    private Integer chunkSize;
+
+    @Min(value = 10, message = "overlap 范围 10~200")
+    @Max(value = 200, message = "overlap 范围 10~200")
+    private Integer overlap;
+}
