@@ -377,6 +377,11 @@ async function termDispatch(raw) {
     return;
   }
 
+  if (term.mode !== 'auth' && (c0 === 'login' || c0 === 'register')) {
+    termPrint('<span class="term-warn">已登录，如需切换账号请先 </span><span class="term-hl">logout</span>');
+    return;
+  }
+
   const fn = TERM_CMDS[c0];
   if (!fn) {
     termPrint(`<span class="term-err">未知命令：${esc(c0)}</span> — 输入 <span class="term-hl">help</span> 查看帮助`);
@@ -416,12 +421,6 @@ async function cmdLogin(args) {
     return;
   }
   const [username, password] = args;
-  if (username === 'HHH' && password === '123456') {
-    saveAuth('dev-token-hhh', { id: 1, username: 'HHH', nickname: '开发者' });
-    termPrint('<span class="term-ok">✓ 登录成功（开发者账户）</span> — ' + esc('开发者'));
-    enterAppTerm();
-    return;
-  }
   termPrint('<span class="term-dim">认证中...</span>');
   const data = await api('POST', '/auth/login', { username, password });
   saveAuth(data.token, data.user);

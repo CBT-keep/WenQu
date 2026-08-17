@@ -1,3 +1,18 @@
 spring:
   application:
     name: WenQU
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/wenqu
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+    secret: ICAgV2VuUXUyMDI2MDgxMDIwMjkwOTEwCg==
+    expiration: 720
