@@ -97,4 +97,14 @@ public class AuthServiceImpl implements AuthService {
                 .role(user.getRole())
                 .build();
     }
+
+    /**
+     * 退出登录
+     */
+    @Override
+    public void logout() {
+        // Spring Security 默认不维护会话，这里不需要做任何操作
+        // TODO 后续引入Redis后，在这里把 token 加入黑名单，防止被继续使用
+        log.info("用户登出成功");
+    }
 }

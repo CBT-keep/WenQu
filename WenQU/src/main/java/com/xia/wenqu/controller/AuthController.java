@@ -58,8 +58,19 @@ public class AuthController {
      */
     @GetMapping("/me")
     public Result<UserVO> me() {
+        log.info("获取当前用户信息");
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
         return Result.ok(authService.getCurrentUser(username));
+    }
+
+    /**
+     * 用户登出
+     */
+    @PostMapping("/logout")
+    public Result<Void> logout() {
+        log.info("用户登出");
+        authService.logout();
+        return Result.ok();
     }
 }

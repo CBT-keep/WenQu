@@ -20,4 +20,9 @@ public interface AuthService {
      * 查询当前用户信息（token 中用户名 → 查库）
      */
     UserVO getCurrentUser(String username);
+
+    /**
+     * 退出登录
+     */
+    void logout();
 }
