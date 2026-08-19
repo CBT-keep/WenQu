@@ -48,8 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // 若没有认证信息，尝试用token进行认证
         if(SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                String username = jwtUtil.parseToken(token);
                 if (jwtUtil.validate(token)) {
+                    String username = jwtUtil.parseToken(token);
+
                     // TODO 每次请求都会从数据库进行查库，后续用Redis缓存用户信息，减少数据库压力
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 

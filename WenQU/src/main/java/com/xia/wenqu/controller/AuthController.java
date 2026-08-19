@@ -30,8 +30,6 @@ public class AuthController {
 
     /**
      * 用户登陆
-     * @param loginDTO
-     * @return
      */
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {

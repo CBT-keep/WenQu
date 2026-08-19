@@ -15,4 +15,4 @@ mybatis:
 
 jwt:
     secret: ICAgV2VuUXUyMDI2MDgxMDIwMjkwOTEwCg==
-    expiration: 720
+    expiration: 7200
