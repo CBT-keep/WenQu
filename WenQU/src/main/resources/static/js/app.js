@@ -212,9 +212,11 @@ const term = {
   draft: '',
   pendingConfirm: null,    // {msg, cb}
   busy: false,             // 流式回答进行中
+  pendingPass: null,       // {username, isRegister} 密码输入中
 };
 
 function promptStr() {
+  if (term.pendingPass) return 'password>';
   if (term.mode === 'auth') return 'kb>';
   if (term.mode === 'chat') return 'chat>';
   return term.curKb ? `wq@kb:${term.curKb.id}$` : 'wq@wenqu$';
@@ -238,14 +240,15 @@ function syncAuthMirror() {
   const v = authInput.value;
   const focused = document.activeElement === authInput;
   const caret = typeof authInput.selectionStart === 'number' ? authInput.selectionStart : v.length;
-  authMirrorBefore.textContent = v.slice(0, caret);
-  authMirrorAfter.textContent = v.slice(caret);
+  const masked = term.pendingPass ? v.replace(/[^\n]/g, '•') : v;
+  authMirrorBefore.textContent = masked.slice(0, caret);
+  authMirrorAfter.textContent = masked.slice(caret);
   if (focused || v) {
     authCursor.style.display = 'inline-block';
     authInput.placeholder = '';
   } else {
     authCursor.style.display = 'none';
-    authInput.placeholder = '输入命令...';
+    authInput.placeholder = term.pendingPass ? '输入密码...' : '输入命令...';
   }
 }
 authInput.addEventListener('input', syncAuthMirror);
@@ -333,6 +336,20 @@ function completeTab() {
 /* ---- 输入分发 ---- */
 authInput.addEventListener('keydown', async e => {
   if (e.isComposing || e.keyCode === 229) return;
+
+  // 密码输入模式：关闭 Tab / 上下历史 / Tab 补全
+  if (term.pendingPass) {
+    if (e.key === 'Tab') { e.preventDefault(); return; }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); return; }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const pwd = authInput.value;
+    authInput.value = '';
+    syncAuthMirror();
+    await termSubmitPass(pwd);
+    return;
+  }
+
   if (e.key === 'Tab') { e.preventDefault(); completeTab(); return; }
   if (e.key === 'ArrowUp') { e.preventDefault(); navHistory(-1); return; }
   if (e.key === 'ArrowDown') { e.preventDefault(); navHistory(1); return; }
@@ -345,10 +362,15 @@ authInput.addEventListener('keydown', async e => {
 
   term.history.push(raw);
   term.histIdx = term.history.length;
-  termPrint(`<span class="term-prompt">${promptStr()}</span> ${esc(raw)}`);
+  termPrint(`<span class="term-prompt">${promptStr()}</span> ${esc(maskSensitiveCmd(raw))}`);
 
   try {
     await termDispatch(raw);
+    // 含密码的 login/register 不进历史（避免回放泄露）：遮罩后再次压入历史
+    const c0 = parseArgs(raw)[0]?.toLowerCase();
+    if (raw && (c0 === 'login' || c0 === 'register') && parseArgs(raw).length > 2) {
+      term.history[term.history.length - 1] = maskSensitiveCmd(raw);
+    }
   } catch (err) {
     const isAuth = err instanceof ApiError && (err.code === 40100 || err.code === 40101);
     if (!isAuth) termPrintErr(err);
@@ -404,6 +426,21 @@ function parseArgs(raw) {
   return out;
 }
 
+// 对 login/register 命令回显时遮罩密码，避免明文泄露到终端输出
+function maskSensitiveCmd(raw) {
+  const words = parseArgs(raw);
+  if (!words.length) return raw;
+  const c0 = words[0].toLowerCase();
+  if (c0 !== 'login' && c0 !== 'register') return raw;
+  if (words.length < 2) return raw;
+  // login <用户名> <密码>：密码遮罩；register <用户名> [密码] [昵称]：遮罩密码、保留昵称
+  const username = words[1];
+  const hiddenCount = words.length - 2;
+  let masked = words[0] + ' ' + username;
+  if (hiddenCount > 0) masked += ' ' + '*'.repeat(Math.min(hiddenCount, 4));
+  return masked;
+}
+
 function parseFlags(args) {
   const flags = {};
   const positional = [];
@@ -430,29 +467,68 @@ function stripBrackets(s) {
 }
 
 /* ---- 登录/登出 ---- */
-async function cmdLogin(args) {
-  if (args.length < 2) {
-    termPrint('<span class="term-warn">用法：login &lt;用户名&gt; &lt;密码&gt;</span>');
+// 交互式密码提交（SSH 风格，不回显明文）
+async function termSubmitPass(password) {
+  const ctx = term.pendingPass;
+  term.pendingPass = null;
+  updatePrompt();
+  if (!ctx) return;
+  if (!password) {
+    termPrint('<span class="term-warn">密码不能为空</span>');
     return;
   }
-  const [username, password] = args;
-  termPrint('<span class="term-dim">认证中...</span>');
-  const data = await api('POST', '/auth/login', { username, password });
-  saveAuth(data.token, data.user);
-  termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || username));
-  enterAppTerm();
+  try {
+    if (ctx.isRegister) {
+      await api('POST', '/auth/register', { username: ctx.username, password, nickname: ctx.nickname });
+      termPrint('<span class="term-ok">✓ 注册成功</span> — 现在可以用 <span class="term-hl">login</span> 命令登录');
+      return;
+    }
+    termPrint('<span class="term-dim">认证中...</span>');
+    const data = await api('POST', '/auth/login', { username: ctx.username, password });
+    saveAuth(data.token, data.user);
+    termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || ctx.username));
+    enterAppTerm();
+  } catch (err) {
+    const isAuth = err instanceof ApiError && (err.code === 40100 || err.code === 40101);
+    if (isAuth) { handleSessionExpired(); return; }
+    termPrintErr(err);
+  }
+}
+
+async function cmdLogin(args) {
+  if (args.length < 1) {
+    termPrint('<span class="term-warn">用法：login &lt;用户名&gt; [密码]</span><span class="term-dim"> — 未提供密码时将交互式输入</span>');
+    return;
+  }
+  const username = args[0];
+  const password = args.slice(1).join(' ');
+  if (password) {
+    // 直接提供密码仍立即认证；命令行回显已由 maskSensitiveCmd 遮罩
+    termPrint('<span class="term-dim">认证中...</span>');
+    const data = await api('POST', '/auth/login', { username, password });
+    saveAuth(data.token, data.user);
+    termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || username));
+    enterAppTerm();
+    return;
+  }
+  // 未提供密码 → 交互式输入（SSH 风格，不回显）
+  term.pendingPass = { username, isRegister: false };
+  updatePrompt();
+  termPrint('<span class="term-dim">请输入密码（输入不回显）</span>');
+  authInput.focus();
 }
 
 async function cmdRegister(args) {
-  if (args.length < 2) {
-    termPrint('<span class="term-warn">用法：register &lt;用户名&gt; &lt;密码&gt; [昵称]</span>');
+  if (args.length < 1) {
+    termPrint('<span class="term-warn">用法：register &lt;用户名&gt; [昵称]</span><span class="term-dim"> — 密码将交互式输入</span>');
     return;
   }
-  const [username, password] = args;
-  const nickname = args.slice(2).join(' ') || undefined;
-  termPrint('<span class="term-dim">注册中...</span>');
-  await api('POST', '/auth/register', { username, password, nickname });
-  termPrint('<span class="term-ok">✓ 注册成功</span> — 现在可以用 <span class="term-hl">login</span> 命令登录');
+  const username = args[0];
+  const nickname = args.slice(1).join(' ') || undefined;
+  term.pendingPass = { username, isRegister: true, nickname };
+  updatePrompt();
+  termPrint('<span class="term-dim">设置密码（输入不回显）</span>');
+  authInput.focus();
 }
 
 function enterAppTerm() {
@@ -487,6 +563,7 @@ function doLogout() {
   term.curConv = null;
   term.busy = false;
   term.pendingConfirm = null;
+  term.pendingPass = null;
   updatePrompt();
   updateTermTitle();
   showAuth();
@@ -503,6 +580,7 @@ function handleSessionExpired() {
   term.curConv = null;
   term.busy = false;
   term.pendingConfirm = null;
+  term.pendingPass = null;
   updatePrompt();
   updateTermTitle();
   showAuth();
@@ -1054,7 +1132,15 @@ function renderKbList(filter = '') {
     .forEach(k => {
       const item = document.createElement('div');
       item.className = 'sidebar-item' + (state.currentKb?.id === k.id ? ' active' : '');
-      item.innerHTML = `<div class="name">${esc(k.name)}</div><div class="meta">${k.docCount || 0} 文档 · ${k.chunkCount || 0} 分块</div>`;
+      const init = (k.name || '?').trim().charAt(0).toUpperCase();
+      item.innerHTML = `
+        <div class="kb-avatar">
+          <span class="kb-av" data-kb-av>${esc(init)}</span>
+          <div class="kb-text">
+            <div class="name">${esc(k.name)}</div>
+            <div class="meta">${k.docCount || 0} 文档 · ${k.chunkCount || 0} 分块</div>
+          </div>
+        </div>`;
       item.onclick = () => selectKb(k);
       el.appendChild(item);
     });
@@ -1066,6 +1152,13 @@ async function selectKb(kb) {
   renderKbList(document.getElementById('kb-search').value);
   showKbView();
   stopAllDocPolls();
+  if (isMobile()) {
+    const body = document.getElementById('app-body');
+    if (body.classList.contains('sidebar-open')) {
+      body.classList.remove('sidebar-open');
+      menuBtn().textContent = '☰';
+    }
+  }
   document.getElementById('kb-title').textContent = kb.name;
   document.getElementById('btn-upload-doc').style.display = '';
   document.getElementById('btn-edit-kb').style.display = '';
@@ -1479,6 +1572,61 @@ function fmtSize(b) {
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
   return (b / 1048576).toFixed(1) + ' MB';
 }
+
+/* ============================================================
+   SIDEBAR TOGGLE
+   ============================================================ */
+const sidebarEl = () => document.getElementById('sidebar');
+const caretEl = () => document.getElementById('sidebar-caret');
+const menuBtn = () => document.getElementById('btn-app-menu');
+
+function isMobile() { return window.matchMedia('(max-width:900px)').matches; }
+
+function setCollapsed(collapsed) {
+  const sb = sidebarEl();
+  sb.classList.toggle('collapsed', collapsed);
+  const c = caretEl();
+  if (c) c.textContent = collapsed ? '▶' : '◀';
+  localStorage.setItem('wq_sidebar_collapsed', collapsed ? 'true' : 'false');
+}
+
+// 桌面：caret 折叠/展开
+if (caretEl()) {
+  caretEl().onclick = () => setCollapsed(!sidebarEl().classList.contains('collapsed'));
+}
+
+// 移动端：菜单按钮开关侧边栏覆盖层
+if (menuBtn()) {
+  menuBtn().onclick = () => {
+    document.getElementById('app-body').classList.toggle('sidebar-open');
+    menuBtn().textContent = document.getElementById('app-body').classList.contains('sidebar-open') ? '✕' : '☰';
+  };
+}
+
+// 点击内容区域关闭移动端侧边栏
+const contentArea = document.getElementById('content-area');
+if (contentArea) {
+  contentArea.addEventListener('click', () => {
+    if (isMobile() && document.getElementById('app-body').classList.contains('sidebar-open')) {
+      document.getElementById('app-body').classList.remove('sidebar-open');
+      menuBtn().textContent = '☰';
+    }
+  });
+}
+
+// 初始化侧边栏状态（仅桌面）
+if (!isMobile() && localStorage.getItem('wq_sidebar_collapsed') === 'true') {
+  setCollapsed(true);
+}
+
+window.addEventListener('resize', () => {
+  const sb = sidebarEl();
+  if (isMobile()) {
+    sb.classList.remove('collapsed');
+    document.getElementById('app-body').classList.remove('sidebar-open');
+    if (menuBtn()) menuBtn().textContent = '☰';
+  }
+});
 
 /* ============================================================
    INIT

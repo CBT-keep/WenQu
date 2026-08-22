@@ -39,6 +39,7 @@
 <!-- ==================== APP ==================== -->
 <div id="app-view" class="view">
   <header class="app-header">
+    <button class="app-menu-btn" id="btn-app-menu" title="菜单">☰</button>
     <div class="dots"><div class="d r"></div><div class="d y"></div><div class="d g"></div></div>
     <div class="title" id="app-term-title">wenqu — bash — 80×24</div>
     <div class="spacer"></div>
@@ -47,21 +48,22 @@
     <button class="btn-sm btn-ghost" id="btn-term">终端</button>
     <button class="btn-sm btn-ghost" id="btn-logout">登出</button>
   </header>
-  <div class="app-body">
+  <div class="app-body" id="app-body">
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
         <div class="row">
           <input id="kb-search" placeholder="搜索知识库…" style="flex:1">
-          <button class="btn-sm" id="btn-new-kb" title="新建">+</button>
+          <button class="btn-sm" id="btn-new-kb" title="新建知识库"><span class="btn-label">新建</span></button>
         </div>
       </div>
       <div class="sidebar-title">知识库</div>
       <div class="sidebar-list" id="kb-list"></div>
       <div class="sidebar-footer">
-        <button class="btn-sm" style="width:100%" id="btn-new-chat">新对话</button>
+        <button class="btn-sm" style="width:100%" id="btn-new-chat" title="新对话"><span class="btn-label">新对话</span></button>
       </div>
     </aside>
+    <button class="sidebar-caret" id="sidebar-caret" title="折叠/展开侧边栏">◀</button>
 
     <!-- CONTENT -->
     <div class="content" id="content-area">
