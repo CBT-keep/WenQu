@@ -162,6 +162,12 @@ function showApp() {
   document.getElementById('header-user').textContent =
     state.user?.nickname || state.user?.username || '-';
   updateAppTitle();
+  showKbView();
+  if (state.currentKb) {
+    selectKb(state.currentKb);
+  } else {
+    renderKbEmpty();
+  }
   loadKbs();
 }
 
@@ -458,9 +464,24 @@ function enterAppTerm() {
   termPrint('<span class="term-dim">输入 </span><span class="term-hl">help</span><span class="term-dim"> 查看全部命令，</span><span class="term-hl">gui</span><span class="term-dim"> 切换到可视化界面</span>');
 }
 
+function resetGuiState() {
+  stopAllDocPolls();
+  state.currentKb = null;
+  state.currentConv = null;
+  state.kbs = [];
+  state.docs = [];
+  state.conversations = [];
+  state.chatMsgs = [];
+  state.editingKbId = null;
+  document.getElementById('kb-search').value = '';
+  document.getElementById('chat-messages').innerHTML = '';
+  renderKbEmpty();
+  showKbView();
+}
+
 function doLogout() {
   clearAuth();
-  stopAllDocPolls();
+  resetGuiState();
   term.mode = 'auth';
   term.curKb = null;
   term.curConv = null;
@@ -476,7 +497,7 @@ function doLogout() {
 
 function handleSessionExpired() {
   clearAuth();
-  stopAllDocPolls();
+  resetGuiState();
   term.mode = 'auth';
   term.curKb = null;
   term.curConv = null;

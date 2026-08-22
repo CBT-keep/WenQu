@@ -6,4 +6,20 @@
         INSERT INTO knowledge_base (user_id, name, description, chunk_size, overlap)
         VALUES (#{userId}, #{name}, #{description}, #{chunkSize}, #{overlap})
     </insert>
+
+    <select id="pageQuery" resultType="com.xia.wenqu.model.vo.KBVO">
+        SELECT
+            kb.id,
+            kb.name,
+            kb.description,
+            kb.chunk_size,
+            kb.overlap,
+            (SELECT COUNT(*) FROM `document` d WHERE d.kb_id = kb.id AND d.deleted = 0) AS doc_count,
+            (SELECT COUNT(*) FROM doc_chunk dc WHERE dc.kb_id = kb.id) AS chunk_count,
+            <!-- 获取创建时间 -->
+            CAST(UNIX_TIMESTAMP(kb.created_at) * 1000 AS UNSIGNED) AS created_at
+        FROM knowledge_base kb
+        WHERE kb.user_id = #{userId} AND kb.deleted = 0
+        ORDER BY kb.created_at DESC
+    </select>
 </mapper>

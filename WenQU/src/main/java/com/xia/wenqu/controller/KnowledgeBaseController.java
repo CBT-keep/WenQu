@@ -1,5 +1,6 @@
 package com.xia.wenqu.controller;
 
+import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.Result;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.vo.KBVO;
@@ -9,10 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 知识库相关接口
@@ -35,5 +33,17 @@ public class KnowledgeBaseController {
 
         KBVO kbvo = knowledgeBaseService.createKnowledgeBase(loginUser.getUserId(), kbCreateDTO);
         return Result.ok(kbvo);
+    }
+
+    /**
+     * 查询知识库列表
+     */
+    @GetMapping
+    public Result<PageResult<KBVO>> listKnowledgeBases(@AuthenticationPrincipal LoginUser loginUser,
+                                                       @RequestParam(defaultValue = "1") int page,
+                                                       @RequestParam(defaultValue = "10") int pageSize) {
+        log.info("查询知识库列表:page={},pageSize={}", page, pageSize);
+        PageResult<KBVO> pageResult = knowledgeBaseService.listKnowledgeBases(loginUser.getUserId(), page, pageSize);
+        return Result.ok(pageResult);
     }
 }
