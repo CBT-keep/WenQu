@@ -16,11 +16,11 @@ public class KbCreateDTO {
     @Size(max = 200)
     private String description;
 
-    @Min(value = 200, message = "chunkSize 范围 200~800")
-    @Max(value = 800, message = "chunkSize 范围 200~800")
+    @Min(value = 200, message = "分块大小范围 200~800")
+    @Max(value = 800, message = "分块大小范围 200~800")
     private Integer chunkSize;
 
-    @Min(value = 10, message = "overlap 范围 10~200")
-    @Max(value = 200, message = "overlap 范围 10~200")
+    @Min(value = 10, message = "重叠大小范围 10~200")
+    @Max(value = 200, message = "重叠大小范围 10~200")
     private Integer overlap;
 }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xia.wenqu.mapper.KnowledgeBaseMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO knowledge_base (user_id, name, description, chunk_size, overlap)
+        VALUES (#{userId}, #{name}, #{description}, #{chunkSize}, #{overlap})
+    </insert>
+</mapper>

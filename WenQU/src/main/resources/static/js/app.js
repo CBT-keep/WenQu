@@ -414,6 +414,15 @@ function num(v, dflt) {
   return Number.isFinite(n) ? n : dflt;
 }
 
+function stripBrackets(s) {
+  if (!s) return s;
+  const pairs = [['[', ']'], ['<', '>'], ['(', ')'], ['{', '}']];
+  for (const [o, c] of pairs) {
+    if (s.startsWith(o) && s.endsWith(c) && s.length >= 2) return s.slice(1, -1);
+  }
+  return s;
+}
+
 /* ---- 登录/登出 ---- */
 async function cmdLogin(args) {
   if (args.length < 2) {
@@ -524,7 +533,7 @@ const TERM_CMDS = {
       kb: [
         ['kb list [关键字]', '列出知识库'],
         ['kb show <id>', '知识库详情'],
-        ['kb create <名称> [--desc=描述] [--chunk=400] [--overlap=80]', '创建知识库'],
+        ['kb create <名称> [描述] [分块大小] [重叠]', '创建知识库'],
         ['kb edit <id> [--name=] [--desc=] [--chunk=] [--overlap=]', '编辑知识库（全量更新）'],
         ['kb delete <id>', '删除知识库（级联）'],
         ['kb use <id>', '设为当前知识库'],
@@ -634,13 +643,28 @@ const TERM_CMDS = {
       }
       case 'create': {
         const { flags, positional } = parseFlags(args);
-        const name = positional[0];
-        if (!name) { termPrint('<span class="term-warn">用法：kb create &lt;名称&gt; [--desc=描述] [--chunk=400] [--overlap=80]</span>'); return; }
+        const name = positional[0] ? stripBrackets(positional[0]) : null;
+        if (!name) { termPrint('<span class="term-warn">用法：kb create &lt;名称&gt; [描述] [分块大小] [重叠]</span>'); return; }
+        // 智能解析：非数字→描述，第一个数字→分块大小，第二个数字→重叠；兼容 --desc=/--chunk=/--overlap= flag
+        let description = flags.desc || '';
+        let chunkSize = flags.chunk !== undefined ? num(flags.chunk, 400) : null;
+        let overlap = flags.overlap !== undefined ? num(flags.overlap, 80) : null;
+        for (const a of positional.slice(1)) {
+          const v = stripBrackets(a);
+          if (/^\d+$/.test(v)) {
+            if (chunkSize === null) chunkSize = num(v, 400);
+            else if (overlap === null) overlap = num(v, 80);
+          } else if (!description) {
+            description = v;
+          }
+        }
+        chunkSize = chunkSize === null ? 400 : chunkSize;
+        overlap = overlap === null ? 80 : overlap;
         const k = await api('POST', '/kbs', {
           name,
-          description: flags.desc || '',
-          chunkSize: num(flags.chunk, 400),
-          overlap: num(flags.overlap, 80),
+          description,
+          chunkSize,
+          overlap,
         });
         termPrint(`<span class="term-ok">✓ 已创建</span> <span class="term-hl">#${k.id}</span> ${esc(k.name)} — <span class="term-hl">kb use ${k.id}</span> 设为当前`);
         break;

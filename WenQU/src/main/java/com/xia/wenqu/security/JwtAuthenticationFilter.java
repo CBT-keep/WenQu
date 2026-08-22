@@ -1,17 +1,17 @@
 package com.xia.wenqu.security;
 
-import com.xia.wenqu.service.impl.UserDetailsServiceImpl;
 import com.xia.wenqu.utils.JwtUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.jspecify.annotations.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -26,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String ATTR_TOKEN_EXPIRED = "wq_token_expired";
 
     private final JwtUtil jwtUtil;
-    private final UserDetailsServiceImpl userDetailsService;
+    private final UserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(
@@ -53,6 +53,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     // TODO 每次请求都会从数据库进行查库，后续用Redis缓存用户信息，减少数据库压力
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                    // 如果用户被禁用，清空SecurityContext并标记请求属性
+                    if (!userDetails.isEnabled()) {
+                        SecurityContextHolder.clearContext();
+                        request.setAttribute(ATTR_TOKEN_EXPIRED, false);  // 或自定义标记
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
 
                     // 构造已认证的Authentication对象
                     UsernamePasswordAuthenticationToken authToken =

@@ -6,6 +6,7 @@ import com.xia.wenqu.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -30,10 +31,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 关闭 CSRF(前后段分离+JWT，无cookie，不需要csrf)
+                // 关闭 CSRF
                 .csrf(csrf -> csrf.disable())
 
-                // 无状态会话（JWT 不需要 Session）
+                // 无状态会话
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // 无状态会话
@@ -41,10 +42,12 @@ public class SecurityConfig {
                         // 放行登录接口
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.svg").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/kbs/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/kbs/**").authenticated()
                         // 其余所有请求都需要认证
                         .anyRequest().authenticated())
 
-                // 认证失败/无权限时返回 JSON（与接口文档 §3.1 一致）
+                // 认证失败/无权限时返回 JSON
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler))
