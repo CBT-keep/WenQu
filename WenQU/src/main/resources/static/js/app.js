@@ -1010,7 +1010,7 @@ async function termAsk(convId, kbId, q) {
   term.busy = true;
   const line = document.createElement('div');
   line.className = 'term-line';
-  line.innerHTML = '<span class="term-ok">ai&gt;</span> <span class="term-ai-text"></span><span class="term-blink">▍</span>';
+  line.innerHTML = '<div class="term-ai-md"><span class="term-ok">ai&gt;</span> <span class="term-ai-text md"></span></div><span class="term-blink">▍</span>';
   authOutput.appendChild(line);
   const textEl = line.querySelector('.term-ai-text');
   const blinkEl = line.querySelector('.term-blink');
@@ -1036,12 +1036,12 @@ async function termAsk(convId, kbId, q) {
         if (data.conversationId) term.curConv = { id: data.conversationId, kbId, title: term.curConv?.title || '新对话' };
       } else if (eventType === 'delta') {
         fullContent += data.content || '';
-        textEl.textContent = fullContent;
+        textEl.innerHTML = renderMarkdown(fullContent);
         scroll();
       } else if (eventType === 'done') {
         fullContent = data.fullContent || fullContent;
         sources = data.sources || [];
-        textEl.textContent = fullContent;
+        textEl.innerHTML = renderMarkdown(fullContent);
         blinkEl.remove();
         scroll();
       } else if (eventType === 'error') {
@@ -1504,7 +1504,7 @@ function appendMsg(role, content, isPlaceholder) {
   const el = document.createElement('div');
   el.className = 'msg msg-' + role;
   if (isPlaceholder) {
-    el.innerHTML = '<span class="cursor"></span>';
+    el.innerHTML = '<div class="md"></div><span class="cursor"></span>';
   } else {
     el.textContent = content;
   }
@@ -1515,11 +1515,16 @@ function appendMsg(role, content, isPlaceholder) {
 }
 
 function setAssistantText(el, text, showCursor) {
-  el.textContent = text;
+  const md = el.querySelector('.md') || document.createElement('div');
+  md.className = 'md';
+  if (!el.contains(md)) el.prepend(md);
+  md.innerHTML = renderMarkdown(text);
+  let cursor = el.querySelector('.cursor');
   if (showCursor) {
-    const cursor = document.createElement('span');
-    cursor.className = 'cursor';
+    if (!cursor) { cursor = document.createElement('span'); cursor.className = 'cursor'; }
     el.appendChild(cursor);
+  } else if (cursor) {
+    cursor.remove();
   }
   document.getElementById('chat-messages').scrollTop =
     document.getElementById('chat-messages').scrollHeight;
@@ -1571,6 +1576,86 @@ function fmtSize(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
   return (b / 1048576).toFixed(1) + ' MB';
+}
+
+/* ============================================================
+   MARKDOWN RENDERER（轻量、安全，先转义再注入）
+   支持：标题/加粗/斜体/行内代码/代码块/列表/引用/链接/分隔线
+   ============================================================ */
+function mdInline(text) {
+  let s = esc(text);
+  s = s.replace(/`([^`]+)`/g, (m, c) => '<code>' + c + '</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*\n])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  s = s.replace(/(^|[^_ \n])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, url) => {
+    const href = /^(https?:\/\/|mailto:|#)/i.test(url) ? url : '#';
+    return '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + label + '</a>';
+  });
+  return s;
+}
+
+function renderMarkdown(src) {
+  if (!src) return '';
+  const text = String(src).replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
+
+  const blocks = [];
+  let txt = text.replace(/```([\w+-]*)\r?\n?([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push({ lang, code });
+    return '\u0000B' + (blocks.length - 1) + '\u0000';
+  });
+
+  const lines = txt.split('\n');
+  const out = [];
+  let para = [], list = null, quote = null;
+
+  const flushPara = () => {
+    if (para.length) { out.push('<p>' + para.join('<br>') + '</p>'); para = []; }
+  };
+  const flushList = () => {
+    if (list) {
+      const tag = list.ordered ? 'ol' : 'ul';
+      out.push('<' + tag + '>' + list.items.map(i => '<li>' + i + '</li>').join('') + '</' + tag + '>');
+      list = null;
+    }
+  };
+  const flushQuote = () => {
+    if (quote) { out.push('<blockquote>' + quote.join('<br>') + '</blockquote>'); quote = null; }
+  };
+  const flushAll = () => { flushPara(); flushList(); flushQuote(); };
+
+  for (const raw of lines) {
+    const t = raw.trim();
+
+    const cb = /^\u0000B(\d+)\u0000$/.exec(t);
+    if (cb) {
+      flushAll();
+      const b = blocks[+cb[1]];
+      out.push('<pre class="md-code"><code>' + esc(b.code || '') + '</code></pre>');
+      continue;
+    }
+
+    if (t === '') { flushAll(); continue; }
+
+    const h = /^(#{1,6})\s+(.+)$/.exec(t);
+    if (h) { flushAll(); const l = h[1].length; out.push('<h' + l + '>' + mdInline(h[2]) + '</h' + l + '>'); continue; }
+
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flushAll(); out.push('<hr>'); continue; }
+
+    const bq = /^&gt;\s?(.*)$/.exec(raw.trim()) || (raw.startsWith('>') ? /^>\s?(.*)$/.exec(raw) : null);
+    if (bq) { flushPara(); flushList(); (quote = quote || []).push(mdInline(bq[1])); continue; }
+
+    const ul = /^[-*+]\s+(.*)$/.exec(t);
+    if (ul) { flushPara(); flushQuote(); (list = list || { ordered: false, items: [] }).items.push(mdInline(ul[1])); continue; }
+
+    const ol = /^\d+[.)]\s+(.*)$/.exec(t);
+    if (ol) { flushPara(); flushQuote(); (list = list || { ordered: true, items: [] }).items.push(mdInline(ol[1])); continue; }
+
+    flushList(); flushQuote();
+    para.push(mdInline(t));
+  }
+  flushAll();
+  return out.join('\n');
 }
 
 /* ============================================================
