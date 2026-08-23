@@ -7,13 +7,17 @@ import com.xia.wenqu.common.ResultCode;
 import com.xia.wenqu.common.exception.BusinessException;
 import com.xia.wenqu.mapper.KnowledgeBaseMapper;
 import com.xia.wenqu.model.dto.KbCreateDTO;
+import com.xia.wenqu.model.dto.KbUpdateDTO;
 import com.xia.wenqu.model.entity.KnowledgeBase;
 import com.xia.wenqu.model.vo.KBVO;
 import com.xia.wenqu.service.KnowledgeBaseService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -80,5 +84,62 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new BusinessException(ResultCode.KB_NOT_FOUND); // 不存在或无权访问，统一提示
         }
         return kbvo;
+    }
+
+    /**
+     * 编辑知识库
+     */
+    @Override
+    public KBVO updateKnowledgeBase(Long id, Long userId, @Valid KbUpdateDTO kbUpdateDTO) {
+        // 查询知识库是否存在，并且属于当前用户
+        KBVO kbvo = knowledgeBaseMapper.selectByIdAndUserId(id, userId);
+        if (kbvo == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND); // 不存在或无权访问
+        }
+
+        // 鉴权通过，组装实体，并更新数据库
+        KnowledgeBase knowledgeBase = KnowledgeBase.builder()
+                .id(id)
+                .userId(userId)
+                .name(kbUpdateDTO.getName())
+                .description(kbUpdateDTO.getDescription())
+                .chunkSize(kbUpdateDTO.getChunkSize())
+                .overlap(kbUpdateDTO.getOverlap())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        knowledgeBaseMapper.updateById(knowledgeBase);
+        return KBVO.builder()
+                .id(knowledgeBase.getId())
+                .name(knowledgeBase.getName())
+                .description(knowledgeBase.getDescription())
+                .chunkSize(knowledgeBase.getChunkSize())
+                .overlap(knowledgeBase.getOverlap())
+                .docCount(0L)
+                .chunkCount(0L)
+                .createdAt(
+                        knowledgeBase.getCreatedAt() != null ?
+                        knowledgeBase.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() :
+                        System.currentTimeMillis())
+                .build();
+    }
+
+    /**
+     * 删除知识库
+     */
+    @Override
+    @Transactional
+    public void deleteKnowledgeBase(Long id, Long userId) {
+        // 查询知识库是否存在，并且属于当前用户
+        KBVO kbvo = knowledgeBaseMapper.selectByIdAndUserId(id, userId);
+        if (kbvo == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND); // 不存在或无权访问
+        }
+
+        // 鉴权通过，删除知识库
+        knowledgeBaseMapper.deleteById(id);
+
+        // 删除级联下的所有相关文档
+        knowledgeBaseMapper.deleteDocumentsByKbId(id);
+        knowledgeBaseMapper.deleteChunksByKbId(id);
     }
 }

@@ -31,4 +31,26 @@
         FROM knowledge_base kb
         WHERE kb.id = #{id} AND kb.user_id = #{userId} AND kb.deleted = 0
     </select>
+
+    <update id="updateById">
+        UPDATE knowledge_base
+        SET name = #{name},
+            description = #{description},
+            chunk_size = #{chunkSize},
+            overlap = #{overlap},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteById">
+        UPDATE knowledge_base SET deleted = 1 WHERE id = #{id}
+    </update>
+
+    <update id="deleteDocumentsByKbId">
+        UPDATE `document` SET deleted = 1 WHERE kb_id = #{kbId}
+    </update>
+
+    <delete id="deleteChunksByKbId">
+        DELETE FROM doc_chunk WHERE kb_id = #{kbId}
+    </delete>
 </mapper>

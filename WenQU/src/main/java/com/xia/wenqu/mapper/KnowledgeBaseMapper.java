@@ -23,4 +23,16 @@ public interface KnowledgeBaseMapper {
      * 查询知识库详情
      */
     KBVO selectByIdAndUserId(@Param("id")Long id, @Param("userId")Long userId);
+
+    /**
+     * 更新知识库
+     */
+    void updateById(KnowledgeBase knowledgeBase);
+
+    /**
+     * 删除操作相关接口
+     */
+    int deleteById(@Param("id") Long id);
+    int deleteDocumentsByKbId(@Param("kbId") Long kbId);
+    int deleteChunksByKbId(@Param("kbId") Long kbId);
 }
