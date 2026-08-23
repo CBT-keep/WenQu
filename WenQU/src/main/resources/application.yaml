@@ -2,6 +2,12 @@ spring:
   application:
     name: WenQU
 
+  #文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
   datasource:
     url: jdbc:mysql://localhost:3306/wenqu
     username: root
@@ -16,3 +22,6 @@ mybatis:
 jwt:
     secret: ICAgV2VuUXUyMDI2MDgxMDIwMjkwOTEwCg==
     expiration: 7200
+
+wenqu:
+  upload-dir: ./uploads
