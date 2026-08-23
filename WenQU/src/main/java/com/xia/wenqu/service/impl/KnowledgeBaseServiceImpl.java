@@ -87,6 +87,17 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     /**
+     * 校验知识库是否存在且属于当前用户
+     */
+    @Override
+    public void validateKnowledgeBase(Long kbId, Long userId) {
+        KBVO kbvo = knowledgeBaseMapper.selectByIdAndUserId(kbId, userId);
+        if (kbvo == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND); // 不存在或无权访问，统一提示
+        }
+    }
+
+    /**
      * 编辑知识库
      */
     @Override

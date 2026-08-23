@@ -4,6 +4,7 @@ import com.github.pagehelper.Page;
 import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.vo.DocumentVO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * @author hbk
@@ -21,4 +22,9 @@ public interface DocumentMapper {
      * 文档列表查询
      */
     Page<DocumentVO> query(Long kbId, int page, int pageSize);
+
+    /**
+     * 文档详情查询
+     */
+    DocumentVO selectById(@Param("id") Long id);
 }

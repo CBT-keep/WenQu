@@ -1258,7 +1258,7 @@ function pollDoc(kbId, docId) {
         delete state.docPollTimers[docId];
       }
     }
-  }, 2000);
+  }, 5000);
 }
 
 async function reprocessDoc(id) {

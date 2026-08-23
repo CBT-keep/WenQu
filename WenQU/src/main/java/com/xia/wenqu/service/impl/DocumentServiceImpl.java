@@ -105,7 +105,10 @@ public class DocumentServiceImpl implements DocumentService {
      * 文章列表查询
      */
     @Override
-    public PageResult<DocumentVO> pageQuery(Long kbId, int page, int pageSize) {
+    public PageResult<DocumentVO> pageQuery(Long kbId, Long userId, int page, int pageSize) {
+        // 校验知识库存在且属于当前用户
+        knowledgeBaseService.validateKnowledgeBase(kbId, userId);
+
         // 开启分页查询
         PageHelper.startPage(page, pageSize);
 
@@ -115,5 +118,19 @@ public class DocumentServiceImpl implements DocumentService {
         Long total = pages.getTotal();
         List<DocumentVO> records = pages.getResult();
         return new PageResult<>(records, total, page, pageSize);
+    }
+
+    /**
+     * 文档详情：先查文档，再校验所属知识库归属
+     */
+    @Override
+    public DocumentVO getDocument(Long id, Long userId) {
+        DocumentVO doc = documentMapper.selectById(id);
+        if (doc == null) {
+            throw new BusinessException(ResultCode.DOCUMENT_NOT_FOUND);
+        }
+        // 校验所属知识库存在且属于当前用户
+        knowledgeBaseService.validateKnowledgeBase(doc.getKbId(), userId);
+        return doc;
     }
 }

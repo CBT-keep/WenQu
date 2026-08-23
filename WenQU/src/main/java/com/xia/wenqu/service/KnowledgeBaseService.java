@@ -24,6 +24,11 @@ public interface KnowledgeBaseService {
     KBVO getKnowledgeBase(Long id, Long userId);
 
     /**
+     * 校验知识库是否存在且属于当前用户，否则抛 KB_NOT_FOUND
+     */
+    void validateKnowledgeBase(Long kbId, Long userId);
+
+    /**
      * 更新知识库
      */
     KBVO updateKnowledgeBase(Long id, Long userId, @Valid KbUpdateDTO kbUpdateDTO);

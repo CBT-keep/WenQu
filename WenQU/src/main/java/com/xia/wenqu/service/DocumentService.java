@@ -22,5 +22,10 @@ public interface DocumentService {
     /**
      * 文章列表查询
      */
-    PageResult<DocumentVO> pageQuery(Long kbId, int page, int pageSize);
+    PageResult<DocumentVO> pageQuery(Long kbId, Long userId, int page, int pageSize);
+
+    /**
+     * 文档详情
+     */
+    DocumentVO getDocument(Long id, Long userId);
 }
