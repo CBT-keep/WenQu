@@ -6,4 +6,13 @@
         INSERT INTO `document` (kb_id, user_id, name, type, size, status, file_path)
         VALUES (#{kbId}, #{userId}, #{name}, #{type}, #{size}, #{status}, #{filePath})
     </insert>
+
+    <select id="query" resultType="com.xia.wenqu.model.vo.DocumentVO">
+        SELECT d.id, d.kb_id, d.name, d.type, d.size, d.status, d.error_msg,
+               (SELECT COUNT(*) FROM doc_chunk c WHERE c.document_id = d.id) AS chunk_count,
+               CAST(UNIX_TIMESTAMP(d.created_at) * 1000 AS UNSIGNED) AS created_at
+        FROM `document` d
+        WHERE d.kb_id = #{kbId} AND d.deleted = 0
+        ORDER BY d.created_at DESC
+    </select>
 </mapper>

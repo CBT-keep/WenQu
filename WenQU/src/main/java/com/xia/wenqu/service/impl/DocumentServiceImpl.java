@@ -1,5 +1,8 @@
 package com.xia.wenqu.service.impl;
 
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
+import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.ResultCode;
 import com.xia.wenqu.common.exception.BusinessException;
 import com.xia.wenqu.mapper.DocumentMapper;
@@ -18,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -95,5 +99,21 @@ public class DocumentServiceImpl implements DocumentService {
                 .chunkCount(0L)
                 .createdAt(System.currentTimeMillis())
                 .build();
+    }
+
+    /**
+     * 文章列表查询
+     */
+    @Override
+    public PageResult<DocumentVO> pageQuery(Long kbId, int page, int pageSize) {
+        // 开启分页查询
+        PageHelper.startPage(page, pageSize);
+
+        // 调mapper层查询
+        Page<DocumentVO> pages = documentMapper.query(kbId, page, pageSize);
+
+        Long total = pages.getTotal();
+        List<DocumentVO> records = pages.getResult();
+        return new PageResult<>(records, total, page, pageSize);
     }
 }

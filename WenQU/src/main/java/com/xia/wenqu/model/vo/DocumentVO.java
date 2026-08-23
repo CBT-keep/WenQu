@@ -1,11 +1,15 @@
 package com.xia.wenqu.model.vo;
 
 import com.xia.wenqu.model.enums.DocumentStatus;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DocumentVO {
 
     private Long id;

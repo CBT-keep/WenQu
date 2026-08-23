@@ -1,5 +1,6 @@
 package com.xia.wenqu.service;
 
+import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.model.vo.DocumentVO;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,4 +18,9 @@ public interface DocumentService {
      * 文件上传
      */
     DocumentVO upload(Long kbId, MultipartFile file, Long userId) throws IOException;
+
+    /**
+     * 文章列表查询
+     */
+    PageResult<DocumentVO> pageQuery(Long kbId, int page, int pageSize);
 }
