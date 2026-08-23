@@ -3,6 +3,8 @@ package com.xia.wenqu.service.impl;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.xia.wenqu.common.PageResult;
+import com.xia.wenqu.common.ResultCode;
+import com.xia.wenqu.common.exception.BusinessException;
 import com.xia.wenqu.mapper.KnowledgeBaseMapper;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.entity.KnowledgeBase;
@@ -66,5 +68,17 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         // 返回分页结果
         return new PageResult<>(records, total, page, pageSize);
+    }
+
+    /**
+     * 查询知识库详情
+     */
+    @Override
+    public KBVO getKnowledgeBase(Long id, Long userId) {
+        KBVO kbvo = knowledgeBaseMapper.selectByIdAndUserId(id, userId);
+        if (kbvo == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND); // 不存在或无权访问，统一提示
+        }
+        return kbvo;
     }
 }

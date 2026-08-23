@@ -4,6 +4,7 @@ import com.github.pagehelper.Page;
 import com.xia.wenqu.model.entity.KnowledgeBase;
 import com.xia.wenqu.model.vo.KBVO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface KnowledgeBaseMapper {
@@ -17,4 +18,9 @@ public interface KnowledgeBaseMapper {
      * 查询知识库列表
      */
     Page<KBVO> pageQuery(Long userId, int page, int pageSize);
+
+    /**
+     * 查询知识库详情
+     */
+    KBVO selectByIdAndUserId(@Param("id")Long id, @Param("userId")Long userId);
 }

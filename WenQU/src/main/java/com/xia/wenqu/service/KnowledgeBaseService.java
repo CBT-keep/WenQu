@@ -15,4 +15,9 @@ public interface KnowledgeBaseService {
      * 查询知识库列表
      */
     PageResult<KBVO> listKnowledgeBases(Long userId, int page, int pageSize);
+
+    /**
+     * 查询知识库详情
+     */
+    KBVO getKnowledgeBase(Long id, Long userId);
 }

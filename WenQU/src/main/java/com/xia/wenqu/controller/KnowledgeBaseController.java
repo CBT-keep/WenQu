@@ -46,4 +46,15 @@ public class KnowledgeBaseController {
         PageResult<KBVO> pageResult = knowledgeBaseService.listKnowledgeBases(loginUser.getUserId(), page, pageSize);
         return Result.ok(pageResult);
     }
+
+    /**
+     * 知识库详情
+     */
+    @GetMapping("/{id}")
+    public Result<KBVO> getKnowledgeBase(@PathVariable Long id,
+                                         @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("查询知识库详情:id={}", id);
+        KBVO kbvo = knowledgeBaseService.getKnowledgeBase(id, loginUser.getUserId());
+        return Result.ok(kbvo);
+    }
 }
