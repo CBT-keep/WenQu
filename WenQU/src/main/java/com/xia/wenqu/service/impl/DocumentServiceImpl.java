@@ -9,12 +9,18 @@ import com.xia.wenqu.mapper.DocumentMapper;
 import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.enums.DocumentStatus;
 import com.xia.wenqu.model.vo.DocumentVO;
+import com.xia.wenqu.service.DocumentProcessService;
 import com.xia.wenqu.service.DocumentService;
 import com.xia.wenqu.service.KnowledgeBaseService;
+import com.xia.wenqu.service.extractor.TextExtractor;
+import com.xia.wenqu.service.extractor.TextExtractorFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -33,11 +39,14 @@ import java.util.Set;
  * @date 2026/8/23 15:09
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class DocumentServiceImpl implements DocumentService {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final DocumentMapper documentMapper;
+    private final TextExtractorFactory extractorFactory;
+    private final DocumentProcessService documentProcessService;
 
     /**
      * 文件上传根目录
@@ -87,6 +96,15 @@ public class DocumentServiceImpl implements DocumentService {
                 .status(DocumentStatus.UPLOADED)
                 .build();
         documentMapper.insert(doc);
+
+        // 触发后台异步处理：解析 → 切分 → 入库
+        // 必须在事务提交后触发，否则异步线程查不到刚插入的文档（事务还没提交）
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                documentProcessService.process(doc.getId());
+            }
+        });
 
         // 返回VO对象
         return DocumentVO.builder()

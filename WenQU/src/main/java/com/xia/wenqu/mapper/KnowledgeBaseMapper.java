@@ -25,6 +25,11 @@ public interface KnowledgeBaseMapper {
     KBVO selectByIdAndUserId(@Param("id")Long id, @Param("userId")Long userId);
 
     /**
+     * 轻量查询：只拿知识库的切分配置（chunk_size / overlap），无聚合子查询
+     */
+    KnowledgeBase selectConfigByIdAndUserId(@Param("id")Long id, @Param("userId")Long userId);
+
+    /**
      * 更新知识库
      */
     void updateById(KnowledgeBase knowledgeBase);

@@ -32,6 +32,12 @@
         WHERE kb.id = #{id} AND kb.user_id = #{userId} AND kb.deleted = 0
     </select>
 
+    <select id="selectConfigByIdAndUserId" resultType="com.xia.wenqu.model.entity.KnowledgeBase">
+        SELECT id, chunk_size, overlap
+        FROM knowledge_base
+        WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
+    </select>
+
     <update id="updateById">
         UPDATE knowledge_base
         SET name = #{name},

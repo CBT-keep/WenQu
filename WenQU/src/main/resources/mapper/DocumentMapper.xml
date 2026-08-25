@@ -23,4 +23,18 @@
         FROM `document` d
         WHERE d.id = #{id} AND d.deleted = 0
     </select>
+
+    <select id="selectEntityById" resultType="com.xia.wenqu.model.entity.Document">
+        SELECT * FROM `document` WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <update id="updateStatus">
+        UPDATE `document`
+        SET status = #{status}, error_msg = #{errorMsg}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateChunkCount">
+        UPDATE `document` SET chunk_count = #{chunkCount} WHERE id = #{id}
+    </update>
 </mapper>

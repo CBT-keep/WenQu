@@ -7,18 +7,19 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 文档小分块
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class KnowledgeBase {
+public class DocChunk {
     private Long id;
-    private Long userId;
-    private String name;
-    private String description;
-    private Integer chunkSize;
-    private Integer overlap;
+    private Long documentId;
+    private Long kbId;
+    private Integer seq;
+    private String content;
+    private String sectionPath;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private Integer deleted;
 }
