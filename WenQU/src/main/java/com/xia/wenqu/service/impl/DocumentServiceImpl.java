@@ -79,44 +79,55 @@ public class DocumentServiceImpl implements DocumentService {
             throw new BusinessException(ResultCode.FILE_TOO_LARGE);
         }
 
-        // 1. 文件落盘：./uploads/{userId}/{kbId}/{时间戳}_{原文件名}
+        // 1. 先落盘：./uploads/{userId}/{kbId}/{时间戳}_{原文件名}
         Path dir = Paths.get(uploadDir, String.valueOf(userId), String.valueOf(kbId));
         Files.createDirectories(dir);
         Path target = dir.resolve(System.currentTimeMillis() + "_" + name).toAbsolutePath();
-        file.transferTo(target);
 
-        // 2. 写入 MySQL，存文件路径
-        Document doc = Document.builder()
-                .kbId(kbId)
-                .userId(userId)
-                .name(name)
-                .type(ext)
-                .size(file.getSize())
-                .filePath(target.toString())
-                .status(DocumentStatus.UPLOADED)
-                .build();
-        documentMapper.insert(doc);
+        try {
+            file.transferTo(target);
 
-        // 触发后台异步处理：解析 → 切分 → 入库
-        // 必须在事务提交后触发，否则异步线程查不到刚插入的文档（事务还没提交）
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                documentProcessService.process(doc.getId());
-            }
-        });
+            // 2. 写库（UPLOADING 中间态，此时尚无文件路径）
+            Document doc = Document.builder()
+                    .kbId(kbId)
+                    .userId(userId)
+                    .name(name)
+                    .type(ext)
+                    .size(file.getSize())
+                    .status(DocumentStatus.UPLOADING) // 设置成中间状态
+                    .build();
+            documentMapper.insert(doc);
 
-        // 返回VO对象
-        return DocumentVO.builder()
-                .id(doc.getId())
-                .kbId(kbId)
-                .name(name)
-                .type(ext)
-                .size(doc.getSize())
-                .status(DocumentStatus.UPLOADED)
-                .chunkCount(0L)
-                .createdAt(System.currentTimeMillis())
-                .build();
+            // 3. 更新文件路径和状态
+            doc.setFilePath(target.toString());
+            doc.setStatus(DocumentStatus.UPLOADED);
+            documentMapper.updateFilePath(doc);
+
+            // 触发后台异步处理：解析 → 切分 → 入库
+            // 必须在事务提交后触发，否则异步线程查不到刚插入的文档（事务还没提交）
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    documentProcessService.process(doc.getId());
+                }
+            });
+
+            // 返回VO对象
+            return DocumentVO.builder()
+                    .id(doc.getId())
+                    .kbId(kbId)
+                    .name(name)
+                    .type(ext)
+                    .size(doc.getSize())
+                    .status(DocumentStatus.UPLOADED)
+                    .chunkCount(0L)
+                    .createdAt(System.currentTimeMillis())
+                    .build();
+        } catch (Exception e) {
+            // 兜底：文件已落盘但 DB 写入失败 → 删除文件，避免孤儿文件
+            Files.deleteIfExists(target);
+            throw e;
+        }
     }
 
     /**

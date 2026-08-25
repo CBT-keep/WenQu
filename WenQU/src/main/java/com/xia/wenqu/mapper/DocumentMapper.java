@@ -43,4 +43,9 @@ public interface DocumentMapper {
      * 回填切分后的块数
      */
     int updateChunkCount(@Param("id") Long id, @Param("chunkCount") int chunkCount);
+
+    /**
+     * 更新文件路径和状态（上传成功后回填）
+     */
+    int updateFilePath(Document doc);
 }

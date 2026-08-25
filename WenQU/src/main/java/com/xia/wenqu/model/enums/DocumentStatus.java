@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum DocumentStatus {
 
     UPLOADED,
+    UPLOADING,
     PARSING,
     CHUNKING,
     EMBEDDING,

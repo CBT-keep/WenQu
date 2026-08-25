@@ -37,4 +37,8 @@
     <update id="updateChunkCount">
         UPDATE `document` SET chunk_count = #{chunkCount} WHERE id = #{id}
     </update>
+
+    <update id="updateFilePath">
+        UPDATE `document` SET file_path = #{filePath}, status = #{status} WHERE id = #{id}
+    </update>
 </mapper>
