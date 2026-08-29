@@ -303,9 +303,65 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* ===== RESPONSIVE ===== */
+
+/* --- 大屏 / 4K (≥1440px) --- */
+@media(min-width:1440px){
+  .auth-box{width:680px}
+  .auth-term-body{height:380px;padding:20px;font-size:14px}
+  .auth-term-head{height:40px;padding:0 18px}
+  .content-body{padding:28px 32px}
+  .content-header{padding:18px 28px}
+  .content-header h2{font-size:17px}
+  .chat-messages{padding:28px 32px;gap:18px;font-size:14px}
+  .chat-input{padding:18px 28px}
+  .chat-input input{padding:12px 16px;font-size:14px}
+  .msg{max-width:72%;padding:14px 18px;font-size:14px}
+  .doc-item{grid-template-columns:1fr 100px 90px 130px;padding:14px 18px}
+  .kb-stats{gap:16px}
+  .stat-card{padding:20px}
+  .stat-card .val{font-size:28px}
+  .sidebar{width:280px}
+  .sidebar.collapsed~.sidebar-caret{left:280px}
+}
+
+/* --- 超大屏 / 4K (≥1920px) --- */
+@media(min-width:1920px){
+  .auth-box{width:760px}
+  .auth-term-body{height:420px;padding:24px;font-size:14px}
+  .content-body{padding:32px 40px;max-width:1400px;margin:0 auto}
+  .content-header{padding:20px 32px;max-width:1400px;margin:0 auto;width:100%}
+  .chat-messages{padding:32px 40px;gap:20px;max-width:1200px;margin:0 auto;width:100%}
+  .chat-input{padding:20px 40px;max-width:1200px;margin:0 auto;width:100%}
+  .msg{max-width:65%}
+  .sidebar{width:300px}
+  .sidebar.collapsed~.sidebar-caret{left:300px}
+  .doc-item{grid-template-columns:1fr 110px 96px 140px}
+  .doc-list{max-width:1200px}
+}
+
+/* --- 超宽屏 (≥2560px) --- */
+@media(min-width:2560px){
+  .content-body{max-width:1600px}
+  .content-header{max-width:1600px}
+  .chat-messages{max-width:1400px}
+  .chat-input{max-width:1400px}
+  .msg{max-width:55%}
+  .doc-list{max-width:1400px}
+  .kb-stats{max-width:1400px}
+}
+
+/* --- 小笔记本 (≤1366px) --- */
+@media(max-width:1366px){
+  .sidebar{width:240px}
+  .sidebar.collapsed~.sidebar-caret{left:240px}
+  .content-body{padding:18px 22px}
+  .chat-messages{padding:18px 22px}
+  .chat-input{padding:14px 22px}
+}
+
+/* --- 平板 / 小桌面 (≤900px) --- */
 @media(max-width:900px){
   .app-menu-btn{display:flex}
-  /* 移动端：侧边栏默认收起为覆盖层，由菜单按钮唤起 */
   .sidebar{position:absolute;left:0;top:0;height:100%;z-index:30;
     transform:translateX(-100%);opacity:0;pointer-events:none;
     transition:transform 0.25s ease,opacity 0.2s ease;
@@ -315,23 +371,81 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   .sidebar-caret{display:none}
   .app-body::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s ease}
   .app-body.sidebar-open::before{opacity:1;pointer-events:auto}
+  /* 登录终端自适应 */
+  .auth-box{width:90vw}
 }
+
+/* --- 手机 (≤768px) --- */
 @media(max-width:768px){
-  .sidebar{width:220px}
-  .sidebar.collapsed{width:0;border-right:none}
+  .sidebar{width:240px}
+  .sidebar.collapsed{width:240px}
   .sidebar-caret{display:none}
   .kb-stats{grid-template-columns:1fr 1fr}
-  .msg{max-width:90%}
+  .msg{max-width:92%}
+  /* 头部紧凑 */
+  .app-header{height:36px;padding:0 10px;gap:6px}
+  .app-header .dots{display:none}
+  .app-header .title{display:none}
+  .app-header .btn-sm#btn-term{display:none}
+  /* 终端登录适配 */
+  .auth-term-body{height:260px;padding:12px}
 }
+
+/* --- 小屏手机 (≤600px) --- */
 @media(max-width:600px){
-  .content-header{padding:12px 14px}
-  .content-body{padding:14px}
-  .chat-messages{padding:14px}
-  .chat-input{padding:12px 14px}
+  .content-header{padding:10px 12px}
+  .content-body{padding:12px}
+  .chat-messages{padding:12px;gap:12px}
+  .chat-input{padding:10px 12px}
+  .chat-input input{padding:10px 12px;font-size:14px}
   .kb-stats{grid-template-columns:1fr}
-  .doc-item{grid-template-columns:1fr auto auto;gap:8px}
+  .doc-item{grid-template-columns:1fr auto;gap:8px}
   .doc-item .doc-size{display:none}
+  .doc-item .doc-actions{flex-wrap:wrap}
   .content-header .back-btn{display:inline-flex}
   .app-header .user-info{display:none}
-  .app-header .title{padding-left:0}
+  .app-header .title{display:none}
+  .msg{max-width:96%;padding:10px 12px}
+  .msg-user::before,.msg-assistant::before{font-size:12px}
+  /* 模态框全屏化 */
+  .modal{width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;border:none}
+  .modal-overlay{padding:0}
+  /* 终端登录进一步压缩 */
+  .auth-term-body{height:200px;padding:10px;font-size:12px}
+  .auth-term-head{height:32px;padding:0 10px}
+  /* Toast 全宽 */
+  .toast{max-width:calc(100vw - 32px)}
+}
+
+/* --- 超小屏 (≤400px) --- */
+@media(max-width:400px){
+  .app-header{height:32px;padding:0 8px;gap:4px}
+  .app-header .btn-sm{padding:2px 6px;font-size:11px}
+  .chat-input{padding:8px 10px;gap:6px}
+  .chat-input input{padding:8px 10px;font-size:13px}
+  .chat-input button{padding:8px 12px;font-size:12px}
+  .auth-term-body{height:180px;font-size:11px}
+}
+
+/* --- 全面屏安全区域适配 --- */
+@supports(padding:max(0px)){
+  .app-header{padding-top:max(0px, env(safe-area-inset-top))}
+  .chat-input{padding-bottom:max(10px, env(safe-area-inset-bottom))}
+  .app-body{padding-bottom:max(0px, env(safe-area-inset-bottom))}
+}
+
+/* --- 触摸友好：增大点击区域 --- */
+@media(pointer:coarse){
+  button,.btn-sm,.sidebar-item,.theme-toggle,.app-menu-btn{min-height:44px;min-width:44px}
+  .chat-input button{min-height:40px}
+  .sidebar-item{padding:12px 14px}
+  .sidebar-item .kb-av{width:36px;height:36px;font-size:14px}
+  .doc-item{padding:12px}
+}
+
+/* --- 横屏手机 --- */
+@media(max-height:500px) and (orientation:landscape){
+  .auth-term-body{height:150px}
+  .app-header{height:32px}
+  .chat-input{padding:6px 12px}
 }
