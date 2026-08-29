@@ -71,7 +71,9 @@ public class DocumentServiceImpl implements DocumentService {
         String name = Objects.requireNonNull(file.getOriginalFilename());
         String ext = name.contains(".") ? name.substring(name.lastIndexOf(".") + 1).toLowerCase() : "";
 
-        if(!Set.of("txt", "md", "docx").contains(ext)) {
+        if(!Set.of("txt", "md", "doc", "docx", "pdf",
+                "xls", "xlsx", "ppt", "pptx",
+                "html", "csv", "epub").contains(ext)) {
             throw new BusinessException(ResultCode.UNSUPPORTED_FILE_TYPE);
         }
 

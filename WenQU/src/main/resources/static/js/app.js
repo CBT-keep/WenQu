@@ -606,7 +606,7 @@ const TERM_CMDS = {
       const authLines = [
         ['help', '显示帮助'],
         ['login <用户名> <密码>', '登录'],
-        ['register <用户名> <密码> [昵称]', '注册'],
+        ['register <用户名> [昵称]', '注册（密码交互式输入）'],
         ['theme', '切换明/暗主题'],
         ['clear', '清屏'],
       ];
@@ -842,7 +842,7 @@ const TERM_CMDS = {
       case 'upload': {
         const kbId = num(args[0]) || term.curKb?.id;
         if (!kbId) { termPrint('<span class="term-warn">请先 <span class="term-hl">kb use &lt;id&gt;</span> 或使用 <span class="term-hl">doc upload &lt;kbId&gt;</span></span>'); return; }
-        termPrint('<span class="term-dim">请选择文件（.txt/.md/.docx，≤20MB）...</span>');
+        termPrint('<span class="term-dim">请选择文件（.txt/.md/.docx/.pdf/.xls/.xlsx/.ppt/.pptx/.html/.csv/.epub，≤20MB）...</span>');
         termFileInput.onchange = async () => {
           const f = termFileInput.files[0];
           termFileInput.value = '';

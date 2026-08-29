@@ -9,10 +9,6 @@ import java.util.List;
 
 /**
  * 解析分配器
- *
- * @author hbk
- * @version 1.0
- * @date 2026/8/25 09:30
  */
 @Component
 @RequiredArgsConstructor

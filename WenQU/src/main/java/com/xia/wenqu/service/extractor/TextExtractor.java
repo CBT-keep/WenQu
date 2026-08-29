@@ -1,5 +1,7 @@
 package com.xia.wenqu.service.extractor;
 
+import org.apache.tika.exception.TikaException;
+
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -13,7 +15,7 @@ import java.nio.file.Path;
 public interface TextExtractor {
 
     // 输入文件路径，输出文件里的文字
-    String extract(Path filePath) throws IOException;
+    String extract(Path filePath) throws IOException, TikaException;
 
     // 支持的格式
     boolean supports(String ext);

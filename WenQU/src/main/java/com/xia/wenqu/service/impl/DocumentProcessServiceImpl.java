@@ -12,7 +12,6 @@ import com.xia.wenqu.service.chunker.TextChunker;
 import com.xia.wenqu.service.extractor.TextExtractorFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -23,10 +22,6 @@ import java.util.stream.IntStream;
 
 /**
  * 异步处理实现类
- *
- * @author hbk
- * @version 1.0
- * @date 2026/8/25 10:02
  */
 @Slf4j
 @Service
@@ -54,7 +49,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
         log.info("[{}]开始处理", doc.getName());
 
         try {
-            // 解析出纯文本
+            // 解析
             String text = extractorFactory.get(doc.getType()).extract(Paths.get(doc.getFilePath()));
             if (text == null || text.isBlank()) {
                 throw new IllegalStateException("解析结果为空");
