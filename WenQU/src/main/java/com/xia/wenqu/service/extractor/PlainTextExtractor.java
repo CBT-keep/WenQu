@@ -1,16 +1,18 @@
 package com.xia.wenqu.service.extractor;
 
+import com.ibm.icu.text.CharsetDetector;
+import com.ibm.icu.text.CharsetMatch;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * 文档解析器
+ * 纯文本解析器
  *
  * @author hbk
  * @version 1.0
@@ -25,21 +27,17 @@ public class PlainTextExtractor implements TextExtractor{
         // 转换为字节数组
         byte[] bytes = Files.readAllBytes(filePath);
 
-        // 尝试用 UTF-8 解码
-        String text;
-        try {
-            text = new String(bytes, Charset.forName("UTF-8"));
-        } catch (Exception e) {
-            // 失败即用GBK
-            text = new String(bytes, Charset.forName("GBK"));
+        // 使用ICUJ自动检测编码
+        CharsetDetector charsetDetector = new CharsetDetector();
+        charsetDetector.setText(new ByteArrayInputStream(bytes));
+        CharsetMatch match = charsetDetector.detect();
+
+        if(match != null) {
+            return match.getString();
         }
 
-        // 除去BOM乱码字符
-        if(!text.isEmpty() && text.charAt(0) == '\uFEFF') {
-            text = text.substring(1);
-        }
-
-        return text;
+        // 兜底使用UTF-8
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     // 判断是否支持
