@@ -14,20 +14,58 @@
   --font:"SF Mono","JetBrains Mono","Fira Code","Cascadia Code",monospace;
   --r-sm:4px;--r-md:8px;--r-lg:12px;
   --term-shadow:0 8px 40px rgba(0,0,0,.6);
+  --shadow-pop:0 8px 28px rgba(0,0,0,.35);
+
+  /* 侧边栏展开宽度的唯一来源：所有断点只改这个变量，
+     .sidebar 宽度与 .sidebar-caret 坐标均由它派生，杜绝失配 */
+  --sb-w:260px;
+
+  /* 动效 token：状态切换用 --ease，进场用 --ease-out（带减速刹车感） */
+  --dur-fast:.16s;--dur-med:.28s;--dur-slow:.45s;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --ease-out:cubic-bezier(.22,1,.36,1);
+
+  /* 毛玻璃 token */
+  --glass-bg:rgba(18,34,44,.72);
+  --glass-bg-strong:rgba(18,34,44,.85);
+  --blur:14px;
+  --scrim:rgba(3,9,15,.52);
+  --glow-1:rgba(0,255,156,.06);
+  --glow-2:rgba(56,130,246,.055);
 }
 
 /* ===== LIGHT THEME ===== */
 html.light{
+  --glow-1:rgba(0,153,94,.07);--glow-2:rgba(88,120,255,.06);
   --bg:#e8edf2;--panel:#f6f8fb;--card:#ffffff;--card-hover:#f0f4f8;
   --border:rgba(0,0,0,.08);--border-active:rgba(0,160,100,.3);
   --text:#1e2d3a;--text-dim:#5c6f82;--text-muted:#8e9fad;
   --accent:#00995e;--accent-dim:rgba(0,153,94,.1);--accent-glow:rgba(0,153,94,.25);
   --err:#d93025;--warn:#b8860b;--ok:#00995e;
   --term-shadow:0 8px 40px rgba(0,0,0,.1);
+  --shadow-pop:0 8px 28px rgba(30,50,70,.12);
+
+  --glass-bg:rgba(246,248,251,.75);
+  --glass-bg-strong:rgba(246,248,251,.88);
+  --scrim:rgba(15,30,40,.4);
 }
 
-html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+/* 环境光背景：两层极淡的主题色光晕，让半透明表面"有东西可磨"。
+   承载在 html 上，body 及以下视图保持透明 */
+html{
+  height:100%;
+  font-family:var(--font);font-size:14px;line-height:1.5;color:var(--text);
+  background:
+    radial-gradient(640px 460px at 8% -10%,var(--glow-1),transparent 70%),
+    radial-gradient(760px 560px at 106% 112%,var(--glow-2),transparent 72%),
+    var(--bg);
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{height:100%}
+body{font-family:var(--font);color:var(--text);font-size:14px;line-height:1.5}
 a{color:var(--accent);text-decoration:none}
+a,button,input{touch-action:manipulation}
 
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -37,17 +75,19 @@ input,button,textarea{
   font-family:var(--font);font-size:14px;color:var(--text);
   background:transparent;border:1px solid var(--border);
   border-radius:var(--r-sm);outline:none;padding:8px 12px;
-  transition:border-color .2s;
+  transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);
 }
-input:focus,textarea:focus{border-color:var(--accent)}
+input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
 button{
   cursor:pointer;background:var(--accent-dim);
   border-color:var(--accent);color:var(--accent);
   font-weight:600;padding:8px 16px;border-radius:var(--r-sm);
-  transition:all .2s;
+  transition:background-color var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);
 }
 button:hover{background:var(--accent-glow);box-shadow:0 0 12px var(--accent-glow)}
 button:active{transform:scale(.97)}
+button:focus-visible{box-shadow:0 0 0 3px var(--accent-dim)}
 button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
 .btn-err{color:var(--err);background:rgba(255,107,107,.1);border-color:var(--err)}
@@ -57,20 +97,23 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-ghost:hover{background:var(--accent-dim);box-shadow:none}
 
 /* ===== VIEWS ===== */
-.view{display:none;height:100vh;flex-direction:column}
-.view.active{display:flex;animation:viewFadeIn .25s ease forwards}
-@keyframes viewFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.view{display:none;height:100vh;height:100dvh;flex-direction:column}
+.view.active{display:flex;animation:viewFadeIn var(--dur-med) var(--ease-out) both}
+@keyframes viewFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ===== TERMINAL LOGIN ===== */
-#auth-view{align-items:center;justify-content:center;background:var(--bg)}
+#auth-view{align-items:center;justify-content:center}
 .auth-box{width:600px;max-width:94vw}
 .auth-terminal{
-  background:var(--panel);
+  background:var(--glass-bg);
   border:1px solid var(--border);
   border-radius:var(--r-lg);
   overflow:hidden;
   box-shadow:var(--term-shadow);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  animation:authIn var(--dur-slow) var(--ease-out) both;
 }
+@keyframes authIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
 .auth-term-head{
   height:36px;display:flex;align-items:center;padding:0 14px;gap:8px;
   border-bottom:1px solid var(--border);
@@ -103,19 +146,21 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .term-blink{animation:blink 1.2s step-end infinite}
 
 /* ===== FULLSCREEN TERMINAL (app mode) ===== */
-#auth-view.fullscreen{padding:0;background:var(--bg);animation:termFade .25s ease}
+#auth-view.fullscreen{padding:0;animation:termFade .25s ease}
 @keyframes termFade{from{opacity:.45}to{opacity:1}}
-#auth-view.fullscreen .auth-box{width:100%;max-width:none;height:100vh}
-#auth-view.fullscreen .auth-terminal{display:flex;flex-direction:column;height:100%;border-radius:0;border:none;box-shadow:none;border-top:3px solid var(--accent)}
+#auth-view.fullscreen .auth-box{width:100%;max-width:none;height:100vh;height:100dvh}
+#auth-view.fullscreen .auth-terminal{display:flex;flex-direction:column;height:100%;border-radius:0;border:none;box-shadow:none;border-top:3px solid var(--accent);animation:none}
 #auth-view.fullscreen .auth-term-body{flex:1;height:auto;padding:14px 16px}
 #auth-view.fullscreen .auth-term-head{border-top:none}
 #auth-term-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ===== APP LAYOUT ===== */
-#app-view{height:100vh;flex-direction:column;background:var(--bg)}
+#app-view{height:100vh;height:100dvh;flex-direction:column}
 .app-header{
   height:40px;display:flex;align-items:center;padding:0 16px;gap:8px;
-  border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
 }
 .app-header .dots{display:flex;gap:7px}
 .app-header .dots .d{width:11px;height:11px;border-radius:50%}
@@ -129,11 +174,11 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* ===== SIDEBAR ===== */
 .sidebar{
-  width:260px;border-right:1px solid var(--border);
-  background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;
-  transition:width 0.18s cubic-bezier(.4,0,.2,1),opacity 0.18s ease;
+  width:var(--sb-w);border-right:1px solid var(--border);
+  background:var(--glass-bg);display:flex;flex-direction:column;flex-shrink:0;
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  transition:width var(--dur-med) var(--ease-out);
 }
-.sidebar > *{transition:opacity 0.18s ease}
 .sidebar.collapsed{width:56px;overflow:hidden}
 .sidebar.collapsed .sidebar-head .row input,
 .sidebar.collapsed .sidebar-title,
@@ -154,28 +199,38 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .sidebar.collapsed .sidebar-footer .btn-sm{padding:10px 4px;justify-content:center}
 .sidebar.collapsed .sidebar-footer .btn-sm::before{content:'＋';font-size:15px}
 
+/* 收起按钮：left 与侧边栏宽度同源（--sb-w），收起态恒为 56px；
+   过渡时长/缓动与 .sidebar 完全一致，两者同步滑动 */
 .sidebar-caret{
-  position:absolute;left:260px;top:50%;transform:translateY(-50%);
-  width:16px;height:44px;background:var(--panel);border:1px solid var(--border);
+  position:absolute;left:var(--sb-w);top:50%;transform:translateY(-50%);
+  width:16px;height:44px;background:var(--glass-bg-strong);border:1px solid var(--border);
   border-left:none;border-radius:0 var(--r-sm) var(--r-sm) 0;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
-  color:var(--text-dim);font-size:10px;transition:left 0.2s ease,color .15s;z-index:10;padding:0;
+  color:var(--text-dim);font-size:10px;padding:0;z-index:10;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:left var(--dur-med) var(--ease-out),color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),background-color var(--dur-fast) var(--ease);
 }
-.sidebar-caret:hover{color:var(--accent);border-color:var(--accent);background:var(--panel);box-shadow:none}
-.sidebar-caret:active{transform:translateY(-50%);background:var(--panel);box-shadow:none}
+.sidebar-caret:hover{color:var(--accent);border-color:var(--accent);box-shadow:none}
+.sidebar-caret:active{transform:translateY(-50%);box-shadow:none}
 .sidebar.collapsed ~ .sidebar-caret{left:56px}
 
 .sidebar-head{padding:12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
 .sidebar-head .row{display:flex;gap:6px;align-items:center}
-.sidebar-head input{flex:1;padding:7px 12px;background:var(--card);font-size:12px;border:1px solid var(--border);border-radius:var(--r-sm);transition:border-color .2s;min-width:0}
+.sidebar-head input{flex:1;padding:7px 12px;background:var(--card);font-size:12px;border:1px solid var(--border);border-radius:var(--r-sm);transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);min-width:0}
 .sidebar-head input:focus{border-color:var(--accent)}
 .sidebar-title{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.2px;padding:12px 14px 6px;font-weight:700}
 .sidebar-list{flex:1;overflow-y:auto;padding:6px 8px}
-.sidebar-item{padding:8px;border-radius:var(--r-md);cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .15s;font-size:13px}
-.sidebar-item:hover{background:var(--card-hover);border-color:var(--border)}
+.sidebar-item{
+  padding:8px;border-radius:var(--r-md);cursor:pointer;margin-bottom:2px;
+  border:1px solid transparent;font-size:13px;
+  transition:background-color var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.sidebar-item:hover{background:var(--card-hover);border-color:var(--border);transform:translateX(2px)}
 .sidebar-item.active{background:var(--accent-dim);border-color:var(--border-active)}
 .sidebar-item .kb-avatar{display:flex;align-items:center;gap:10px;min-width:0}
-.sidebar-item .kb-av{display:flex;width:30px;height:30px;border-radius:var(--r-md);background:var(--accent-dim);color:var(--accent);align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.sidebar-item .kb-av{display:flex;width:30px;height:30px;border-radius:var(--r-md);background:var(--accent-dim);color:var(--accent);align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;transition:background-color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
 .sidebar-item .kb-text{flex:1;min-width:0}
 .sidebar-item.active .kb-av{background:var(--accent-glow)}
 .sidebar-item .name{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -184,11 +239,13 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .sidebar-footer .btn-sm{display:flex;align-items:center;justify-content:center;gap:6px}
 
 /* ===== CONTENT ===== */
-.content{flex:1;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-width:0}
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 #kb-view{flex:1;display:flex;flex-direction:column;min-height:0}
 .content-header{
   padding:14px 20px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:12px;flex-shrink:0;background:var(--panel);
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
 }
 .content-header h2{font-size:15px;color:var(--text);flex:1;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .content-body{flex:1;padding:20px;overflow-y:auto;min-height:0}
@@ -198,7 +255,7 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .stat-card{
   background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
   padding:16px;display:flex;flex-direction:column;gap:4px;
-  transition:all 0.2s ease;
+  transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);
 }
 .stat-card:hover{border-color:var(--border-active);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1)}
 .stat-card .val{font-size:24px;font-weight:700;color:var(--accent);line-height:1.2}
@@ -209,7 +266,9 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .doc-item{
   display:grid;grid-template-columns:1fr 88px 84px 120px;align-items:center;gap:12px;
   padding:12px 16px;background:var(--card);border:1px solid var(--border);
-  border-radius:var(--r-md);transition:all 0.2s ease;font-size:13px;
+  border-radius:var(--r-md);font-size:13px;
+  transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);
 }
 .doc-item:hover{border-color:var(--border-active);background:var(--card-hover);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,0.08)}
 .doc-item .doc-name{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
@@ -228,9 +287,10 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .empty-state p{font-size:13px;margin-bottom:16px;line-height:1.8}
 
 /* ===== CHAT (terminal style) ===== */
-#chat-view{flex:1;display:flex;flex-direction:column;min-height:0}
-.chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;font-size:13px;min-height:0}
-.msg{max-width:80%;padding:12px 16px;border-radius:var(--r-md);line-height:1.7;animation:fadeIn .2s ease}
+#chat-view{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+/* 底部加大 padding，为悬浮玻璃输入栏留出空间，消息从其下方滑过 */
+.chat-messages{flex:1;overflow-y:auto;padding:20px 20px 92px;display:flex;flex-direction:column;gap:16px;font-size:13px;min-height:0}
+.msg{max-width:80%;padding:12px 16px;border-radius:var(--r-md);line-height:1.7;animation:fadeIn var(--dur-med) var(--ease-out) both}
 .msg-user{align-self:flex-end;background:var(--accent-dim);border:1px solid var(--border-active);color:var(--text);border-bottom-right-radius:var(--r-sm)}
 .msg-user::before{content:'me> ';color:var(--accent);font-weight:700}
 .msg-assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:var(--r-sm)}
@@ -240,14 +300,31 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .msg-sources .src-title{font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
 .msg-sources .src-item{font-size:11px;color:var(--text-dim);padding:6px 10px;background:var(--card-hover);border-radius:var(--r-sm);margin-bottom:6px;display:flex;justify-content:space-between}
 .msg-sources .src-item .sim{color:var(--accent);font-weight:600}
-.chat-input{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;background:var(--panel)}
-.chat-input input{flex:1;background:var(--card);padding:10px 14px;border-radius:var(--r-md);border:1px solid var(--border);transition:border-color .2s}
+/* 悬浮玻璃输入栏：覆盖在消息区底部 */
+.chat-input{
+  position:absolute;left:0;right:0;bottom:0;z-index:5;
+  padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:10px;
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+}
+.chat-input input{flex:1;background:var(--card);padding:10px 14px;border-radius:var(--r-md);border:1px solid var(--border);transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)}
 .chat-input input:focus{border-color:var(--accent)}
 
 /* ===== MODAL (terminal style) ===== */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:100}
-.modal-overlay.active{display:flex}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);width:440px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:var(--term-shadow)}
+.modal-overlay{
+  position:fixed;inset:0;background:var(--scrim);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;z-index:100;
+}
+.modal-overlay.active{display:flex;animation:overlayIn var(--dur-med) var(--ease) both}
+.modal-overlay.closing{display:flex;animation:overlayOut .22s var(--ease) both}
+.modal{
+  background:var(--glass-bg-strong);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);border-radius:var(--r-md);width:440px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-pop);
+}
+.modal-overlay.active .modal{animation:modalIn var(--dur-med) var(--ease-out) both}
+.modal-overlay.closing .modal{animation:modalOut .22s var(--ease) both}
 .modal-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .modal-head h3{font-size:14px;color:var(--text);font-weight:600}
 .modal-body{padding:18px;display:flex;flex-direction:column;gap:12px}
@@ -255,19 +332,36 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .modal-body input,.modal-body textarea{width:100%;background:var(--card);padding:10px 14px;border-radius:var(--r-sm);font-size:13px}
 .modal-body textarea{min-height:60px;resize:vertical}
 .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+@keyframes overlayIn{from{opacity:0}to{opacity:1}}
+@keyframes overlayOut{from{opacity:1}to{opacity:0}}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes modalOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(8px) scale(.98)}}
 
 /* ===== TOAST ===== */
-.toast-wrap{position:fixed;top:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:8px}
-.toast{padding:10px 16px;border-radius:var(--r-md);font-size:12px;border:1px solid var(--border);background:var(--panel);animation:slideIn .25s ease;max-width:320px;word-break:break-word}
+.toast-wrap{
+  position:fixed;z-index:200;display:flex;flex-direction:column;gap:8px;
+  top:calc(16px + env(safe-area-inset-top,0px));
+  right:calc(16px + env(safe-area-inset-right,0px));
+}
+.toast{
+  padding:10px 16px;border-radius:var(--r-md);font-size:12px;border:1px solid var(--border);
+  background:var(--glass-bg-strong);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:var(--shadow-pop);
+  animation:toastIn var(--dur-med) var(--ease-out) both;max-width:320px;word-break:break-word;
+}
+.toast.out{animation:toastOut .25s var(--ease) both}
 .toast-ok{border-color:var(--ok);color:var(--ok)}
 .toast-err{border-color:var(--err);color:var(--err)}
 .toast-info{border-color:var(--accent);color:var(--accent)}
+@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-10px)}}
 
 /* ===== THEME TOGGLE ===== */
 .theme-toggle{
   background:transparent;border:1px solid var(--border);border-radius:20px;
   width:32px;height:32px;display:flex;align-items:center;justify-content:center;
-  font-size:14px;color:var(--text-dim);padding:0;transition:all .25s;
+  font-size:14px;color:var(--text-dim);padding:0;
 }
 .theme-toggle:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
 
@@ -298,43 +392,47 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 @keyframes blink{50%{opacity:0}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* 无障碍：跟随系统减弱动效设置 */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;transition-delay:0ms!important;
+  }
+}
 
 /* ===== RESPONSIVE ===== */
 
 /* --- 大屏 / 4K (≥1440px) --- */
 @media(min-width:1440px){
+  :root{--sb-w:280px}
   .auth-box{width:680px}
   .auth-term-body{height:380px;padding:20px;font-size:14px}
   .auth-term-head{height:40px;padding:0 18px}
   .content-body{padding:28px 32px}
   .content-header{padding:18px 28px}
   .content-header h2{font-size:17px}
-  .chat-messages{padding:28px 32px;gap:18px;font-size:14px}
-  .chat-input{padding:18px 28px}
+  .chat-messages{padding:28px 32px 100px;gap:18px;font-size:14px}
+  .chat-input{padding:16px 28px}
   .chat-input input{padding:12px 16px;font-size:14px}
   .msg{max-width:72%;padding:14px 18px;font-size:14px}
   .doc-item{grid-template-columns:1fr 100px 90px 130px;padding:14px 18px}
   .kb-stats{gap:16px}
   .stat-card{padding:20px}
   .stat-card .val{font-size:28px}
-  .sidebar{width:280px}
-  .sidebar.collapsed~.sidebar-caret{left:280px}
 }
 
 /* --- 超大屏 / 4K (≥1920px) --- */
 @media(min-width:1920px){
+  :root{--sb-w:300px}
   .auth-box{width:760px}
   .auth-term-body{height:420px;padding:24px;font-size:14px}
   .content-body{padding:32px 40px;max-width:1400px;margin:0 auto}
   .content-header{padding:20px 32px;max-width:1400px;margin:0 auto;width:100%}
-  .chat-messages{padding:32px 40px;gap:20px;max-width:1200px;margin:0 auto;width:100%}
-  .chat-input{padding:20px 40px;max-width:1200px;margin:0 auto;width:100%}
+  .chat-messages{padding:32px 40px 104px;gap:20px;max-width:1200px;margin:0 auto;width:100%}
+  .chat-input{padding:18px 40px;max-width:1200px;margin:0 auto;width:100%}
   .msg{max-width:65%}
-  .sidebar{width:300px}
-  .sidebar.collapsed~.sidebar-caret{left:300px}
   .doc-item{grid-template-columns:1fr 110px 96px 140px}
   .doc-list{max-width:1200px}
 }
@@ -352,24 +450,33 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* --- 小笔记本 (≤1366px) --- */
 @media(max-width:1366px){
-  .sidebar{width:240px}
-  .sidebar.collapsed~.sidebar-caret{left:240px}
+  :root{--sb-w:240px}
   .content-body{padding:18px 22px}
-  .chat-messages{padding:18px 22px}
+  .chat-messages{padding:18px 22px 92px}
   .chat-input{padding:14px 22px}
 }
 
 /* --- 平板 / 小桌面 (≤900px) --- */
 @media(max-width:900px){
   .app-menu-btn{display:flex}
-  .sidebar{position:absolute;left:0;top:0;height:100%;z-index:30;
+  /* 防 iOS 输入聚焦时页面自动放大（Safari 要求字号 ≥16px） */
+  input,textarea{font-size:16px!important}
+  .sidebar{
+    position:absolute;left:0;top:0;height:100%;z-index:30;width:260px;
     transform:translateX(-100%);opacity:0;pointer-events:none;
-    transition:transform 0.25s ease,opacity 0.2s ease;
-    width:260px;box-shadow:4px 0 16px rgba(0,0,0,0.3)}
+    transition:transform var(--dur-med) var(--ease-out),opacity var(--dur-med) var(--ease);
+    box-shadow:4px 0 16px rgba(0,0,0,0.3);
+  }
   .sidebar.collapsed{width:260px}
   .app-body.sidebar-open .sidebar{transform:translateX(0);opacity:1;pointer-events:auto}
   .sidebar-caret{display:none}
-  .app-body::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s ease}
+  /* 抽屉遮罩：暗化 + 毛玻璃 */
+  .app-body::before{
+    content:'';position:absolute;inset:0;z-index:20;
+    background:rgba(0,0,0,.45);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity var(--dur-med) var(--ease);
+  }
   .app-body.sidebar-open::before{opacity:1;pointer-events:auto}
   /* 登录终端自适应 */
   .auth-box{width:90vw}
@@ -379,7 +486,6 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 @media(max-width:768px){
   .sidebar{width:240px}
   .sidebar.collapsed{width:240px}
-  .sidebar-caret{display:none}
   .kb-stats{grid-template-columns:1fr 1fr}
   .msg{max-width:92%}
   /* 头部紧凑 */
@@ -395,9 +501,9 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 @media(max-width:600px){
   .content-header{padding:10px 12px}
   .content-body{padding:12px}
-  .chat-messages{padding:12px;gap:12px}
+  .chat-messages{padding:12px 12px 88px;gap:12px}
   .chat-input{padding:10px 12px}
-  .chat-input input{padding:10px 12px;font-size:14px}
+  .chat-input input{padding:10px 12px;font-size:16px}
   .kb-stats{grid-template-columns:1fr}
   .doc-item{grid-template-columns:1fr auto;gap:8px}
   .doc-item .doc-size{display:none}
@@ -422,7 +528,7 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   .app-header{height:32px;padding:0 8px;gap:4px}
   .app-header .btn-sm{padding:2px 6px;font-size:11px}
   .chat-input{padding:8px 10px;gap:6px}
-  .chat-input input{padding:8px 10px;font-size:13px}
+  .chat-input input{padding:8px 10px;font-size:16px}
   .chat-input button{padding:8px 12px;font-size:12px}
   .auth-term-body{height:180px;font-size:11px}
 }
@@ -430,13 +536,13 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 /* --- 全面屏安全区域适配 --- */
 @supports(padding:max(0px)){
   .app-header{padding-top:max(0px, env(safe-area-inset-top))}
-  .chat-input{padding-bottom:max(10px, env(safe-area-inset-bottom))}
-  .app-body{padding-bottom:max(0px, env(safe-area-inset-bottom))}
+  .chat-input{padding-bottom:max(12px, env(safe-area-inset-bottom))}
 }
 
-/* --- 触摸友好：增大点击区域 --- */
+/* --- 触摸友好：增大点击区域（收起按钮是 16px 小把手，排除） --- */
 @media(pointer:coarse){
   button,.btn-sm,.sidebar-item,.theme-toggle,.app-menu-btn{min-height:44px;min-width:44px}
+  .sidebar-caret{min-width:0;min-height:44px}
   .chat-input button{min-height:40px}
   .sidebar-item{padding:12px 14px}
   .sidebar-item .kb-av{width:36px;height:36px;font-size:14px}
@@ -448,4 +554,11 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   .auth-term-body{height:150px}
   .app-header{height:32px}
   .chat-input{padding:6px 12px}
+}
+
+/* --- 不支持 backdrop-filter 的浏览器：回退实色 --- */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .app-header,.sidebar,.content-header,.chat-input,.auth-terminal,.modal,.toast{background:var(--panel)}
+  .modal-overlay{background:rgba(0,0,0,.62)}
+  .app-body::before{backdrop-filter:none}
 }

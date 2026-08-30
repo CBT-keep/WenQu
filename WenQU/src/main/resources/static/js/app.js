@@ -133,7 +133,24 @@ function toast(msg, type = 'info') {
   el.className = 'toast toast-' + type;
   el.textContent = msg;
   document.getElementById('toast-wrap').appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }, 3500);
+}
+
+/* ============================================================
+   MODAL（统一开/关，带进出场动画；.closing 播放退场后再移除 .active）
+   ============================================================ */
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (!m.classList.contains('active') || m.classList.contains('closing')) return;
+  m.classList.add('closing');
+  setTimeout(() => m.classList.remove('active', 'closing'), 230);
 }
 
 /* ============================================================
@@ -1152,13 +1169,7 @@ async function selectKb(kb) {
   renderKbList(document.getElementById('kb-search').value);
   showKbView();
   stopAllDocPolls();
-  if (isMobile()) {
-    const body = document.getElementById('app-body');
-    if (body.classList.contains('sidebar-open')) {
-      body.classList.remove('sidebar-open');
-      menuBtn().textContent = '☰';
-    }
-  }
+  if (isMobile()) closeMobileSidebar();
   document.getElementById('kb-title').textContent = kb.name;
   document.getElementById('btn-upload-doc').style.display = '';
   document.getElementById('btn-edit-kb').style.display = '';
@@ -1306,12 +1317,11 @@ function openKbModal(kb) {
   document.getElementById('mk-chunk').value = kb?.chunkSize || 400;
   document.getElementById('mk-overlap').value = kb?.overlap || 80;
   document.getElementById('mk-err').textContent = '';
-  document.getElementById('modal-kb').classList.add('active');
+  openModal('modal-kb');
 }
 
 document.getElementById('modal-kb-close').onclick =
-  document.getElementById('modal-kb-cancel').onclick = () =>
-    document.getElementById('modal-kb').classList.remove('active');
+  document.getElementById('modal-kb-cancel').onclick = () => closeModal('modal-kb');
 
 document.getElementById('modal-kb-ok').onclick = async () => {
   const body = {
@@ -1331,7 +1341,7 @@ document.getElementById('modal-kb-ok').onclick = async () => {
       await api('POST', '/kbs', body);
       toast('已创建', 'ok');
     }
-    document.getElementById('modal-kb').classList.remove('active');
+    closeModal('modal-kb');
     loadKbs();
   } catch (err) {
     if (err.code !== 40100 && err.code !== 40101) errEl.textContent = err.message;
@@ -1342,12 +1352,11 @@ document.getElementById('modal-kb-ok').onclick = async () => {
 document.getElementById('btn-upload-doc').onclick = () => {
   document.getElementById('upload-file').value = '';
   document.getElementById('upload-err').textContent = '';
-  document.getElementById('modal-upload').classList.add('active');
+  openModal('modal-upload');
 };
 
 document.getElementById('modal-upload-close').onclick =
-  document.getElementById('modal-upload-cancel').onclick = () =>
-    document.getElementById('modal-upload').classList.remove('active');
+  document.getElementById('modal-upload-cancel').onclick = () => closeModal('modal-upload');
 
 document.getElementById('modal-upload-ok').onclick = async () => {
   const file = document.getElementById('upload-file').files[0];
@@ -1360,7 +1369,7 @@ document.getElementById('modal-upload-ok').onclick = async () => {
   try {
     await api('POST', `/kbs/${state.currentKb.id}/documents`, fd, true);
     toast('上传成功', 'ok');
-    document.getElementById('modal-upload').classList.remove('active');
+    closeModal('modal-upload');
     loadDocs(state.currentKb.id);
   } catch (err) {
     if (err.code !== 40100 && err.code !== 40101) errEl.textContent = err.message;
@@ -1667,11 +1676,18 @@ const menuBtn = () => document.getElementById('btn-app-menu');
 
 function isMobile() { return window.matchMedia('(max-width:900px)').matches; }
 
+function closeMobileSidebar() {
+  document.getElementById('app-body').classList.remove('sidebar-open');
+  if (menuBtn()) menuBtn().textContent = '☰';
+}
+
 function setCollapsed(collapsed) {
-  const sb = sidebarEl();
-  sb.classList.toggle('collapsed', collapsed);
+  sidebarEl().classList.toggle('collapsed', collapsed);
   const c = caretEl();
-  if (c) c.textContent = collapsed ? '▶' : '◀';
+  if (c) {
+    c.textContent = collapsed ? '▶' : '◀';
+    c.setAttribute('aria-expanded', String(!collapsed));
+  }
   localStorage.setItem('wq_sidebar_collapsed', collapsed ? 'true' : 'false');
 }
 
@@ -1680,24 +1696,30 @@ if (caretEl()) {
   caretEl().onclick = () => setCollapsed(!sidebarEl().classList.contains('collapsed'));
 }
 
-// 移动端：菜单按钮开关侧边栏覆盖层
+// 移动端：菜单按钮开关侧边栏抽屉
 if (menuBtn()) {
   menuBtn().onclick = () => {
-    document.getElementById('app-body').classList.toggle('sidebar-open');
-    menuBtn().textContent = document.getElementById('app-body').classList.contains('sidebar-open') ? '✕' : '☰';
+    const open = !document.getElementById('app-body').classList.contains('sidebar-open');
+    document.getElementById('app-body').classList.toggle('sidebar-open', open);
+    menuBtn().textContent = open ? '✕' : '☰';
   };
 }
 
-// 点击内容区域关闭移动端侧边栏
+// 点击内容区域关闭移动端抽屉
 const contentArea = document.getElementById('content-area');
 if (contentArea) {
   contentArea.addEventListener('click', () => {
-    if (isMobile() && document.getElementById('app-body').classList.contains('sidebar-open')) {
-      document.getElementById('app-body').classList.remove('sidebar-open');
-      menuBtn().textContent = '☰';
-    }
+    if (isMobile() && document.getElementById('app-body').classList.contains('sidebar-open')) closeMobileSidebar();
   });
 }
+
+// Esc：优先关闭最上层模态框，其次收起移动端抽屉
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const openModalEl = document.querySelector('.modal-overlay.active:not(.closing)');
+  if (openModalEl) { closeModal(openModalEl.id); return; }
+  if (isMobile() && document.getElementById('app-body').classList.contains('sidebar-open')) closeMobileSidebar();
+});
 
 // 初始化侧边栏状态（仅桌面）
 if (!isMobile() && localStorage.getItem('wq_sidebar_collapsed') === 'true') {
@@ -1708,8 +1730,11 @@ window.addEventListener('resize', () => {
   const sb = sidebarEl();
   if (isMobile()) {
     sb.classList.remove('collapsed');
-    document.getElementById('app-body').classList.remove('sidebar-open');
-    if (menuBtn()) menuBtn().textContent = '☰';
+    closeMobileSidebar();
+  } else {
+    // 从移动端切回桌面时，恢复记住的折叠状态
+    const want = localStorage.getItem('wq_sidebar_collapsed') === 'true';
+    if (sb.classList.contains('collapsed') !== want) setCollapsed(want);
   }
 });
 
