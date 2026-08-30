@@ -19,10 +19,26 @@ function applyTheme(dark) {
 
 function toggleTheme() {
   const isLight = document.documentElement.classList.contains('light');
-  applyTheme(isLight);
+  const apply = () => applyTheme(isLight);
+  if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+    document.startViewTransition(apply);
+  } else {
+    apply();
+  }
+  const btn = document.getElementById('app-theme-btn');
+  if (btn && !btn.classList.contains('spin')) {
+    btn.classList.add('spin');
+    btn.addEventListener('animationend', () => btn.classList.remove('spin'), { once: true });
+  }
 }
 
-applyTheme(localStorage.getItem('wq_theme') !== 'light');
+/* 首次访问：优先用系统主题，有存储记录则用存储 */
+const savedTheme = localStorage.getItem('wq_theme');
+if (savedTheme) {
+  applyTheme(savedTheme !== 'light');
+} else {
+  applyTheme(!window.matchMedia('(prefers-color-scheme:light)').matches);
+}
 
 document.getElementById('app-theme-btn').onclick = toggleTheme;
 
@@ -140,17 +156,39 @@ function toast(msg, type = 'info') {
 }
 
 /* ============================================================
-   MODAL（统一开/关，带进出场动画；.closing 播放退场后再移除 .active）
+   MODAL（统一开/关，带进出场动画；焦点陷阱支持；Esc 关闭）
    ============================================================ */
+let _modalRestoreFocus = null;
+let _modalKeyHandler = null;
+
 function openModal(id) {
-  document.getElementById(id).classList.add('active');
+  const m = document.getElementById(id);
+  m.classList.add('active');
+  _modalRestoreFocus = document.activeElement;
+  // 聚焦第一个可聚焦元素
+  const focusable = m.querySelectorAll('input,textarea,button:not([disabled])');
+  if (focusable.length) setTimeout(() => focusable[0].focus(), 50);
+  // 焦点陷阱：Tab 循环
+  _modalKeyHandler = e => {
+    if (e.key !== 'Tab' || m.classList.contains('closing')) return;
+    const f = m.querySelectorAll('input,textarea,button:not([disabled])');
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  m.addEventListener('keydown', _modalKeyHandler);
 }
 
 function closeModal(id) {
   const m = document.getElementById(id);
   if (!m.classList.contains('active') || m.classList.contains('closing')) return;
   m.classList.add('closing');
-  setTimeout(() => m.classList.remove('active', 'closing'), 230);
+  m.removeEventListener('keydown', _modalKeyHandler);
+  setTimeout(() => {
+    m.classList.remove('active', 'closing');
+    if (_modalRestoreFocus) { _modalRestoreFocus.focus(); _modalRestoreFocus = null; }
+  }, 230);
 }
 
 /* ============================================================
@@ -1132,8 +1170,39 @@ async function termAsk(convId, kbId, q) {
 /* ============================================================
    KB MODULE
    ============================================================ */
+function renderKbListSkeleton() {
+  const el = document.getElementById('kb-list');
+  el.innerHTML = [1,2,3].map(() =>
+    `<div class="sidebar-item skeleton" style="margin-bottom:2px;padding:8px">
+       <div class="kb-avatar"><div class="kb-av" style="opacity:.2"></div><div class="kb-text"><div class="name" style="height:14px;width:80px">&nbsp;</div><div class="meta" style="height:10px;width:120px;margin-top:4px">&nbsp;</div></div></div>
+     </div>`
+  ).join('');
+}
+
+function renderDocListSkeleton() {
+  const el = document.getElementById('doc-list');
+  if (!el) return;
+  el.innerHTML = [1,2,3].map(() =>
+    `<div class="doc-item skeleton"><div class="doc-name">&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div></div>`
+  ).join('');
+}
+
+function renderStatsSkeleton() {
+  const body = document.getElementById('kb-body');
+  if (!body) return;
+  // 只在统计卡片尚未渲染时显示骨架（已有 .val 的跳过）
+  if (body.querySelector('.stat-card .val[data-count]')) return;
+  const statsEl = body.querySelector('.kb-stats');
+  if (statsEl) {
+    statsEl.innerHTML = [1,2,3,4].map(() =>
+      `<div class="stat-card skeleton"><div class="val" style="height:28px;width:50px">&nbsp;</div><div class="lbl" style="height:12px;width:60px;margin-top:4px">&nbsp;</div></div>`
+    ).join('');
+  }
+}
+
 async function loadKbs() {
   try {
+    renderKbListSkeleton();
     const data = await api('GET', '/kbs?page=1&pageSize=100');
     state.kbs = data?.list || [];
     renderKbList();
@@ -1177,18 +1246,43 @@ async function selectKb(kb) {
   document.getElementById('btn-start-chat').style.display = '';
 
   const body = document.getElementById('kb-body');
-  body.innerHTML = '';
-  body.innerHTML += `<div class="kb-stats">
-    <div class="stat-card"><div class="val">${kb.docCount || 0}</div><div class="lbl">文档数</div></div>
-    <div class="stat-card"><div class="val">${kb.chunkCount || 0}</div><div class="lbl">分块数</div></div>
-    <div class="stat-card"><div class="val">${kb.chunkSize || 400}</div><div class="lbl">分块大小</div></div>
-    <div class="stat-card"><div class="val">${kb.overlap || 80}</div><div class="lbl">重叠</div></div>
-  </div>`;
+  // 一次性拼完整 HTML 再赋值：innerHTML += 会序列化重建 DOM，
+  // 会把动画启动后置为 0 的文本固化、并让 rAF 更新到已脱离文档的旧节点
+  let html = `<div class="kb-stats">${statsHtml(kb)}</div>`;
   if (kb.description) {
-    body.innerHTML += `<p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">${esc(kb.description)}</p>`;
+    html += `<p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">${esc(kb.description)}</p>`;
   }
-  body.innerHTML += `<div class="sidebar-title" style="padding-left:0">文档列表</div><div class="doc-list" id="doc-list"></div>`;
+  html += `<div class="sidebar-title" style="padding-left:0">文档列表</div><div class="doc-list" id="doc-list"></div>`;
+  body.innerHTML = html;
+  renderStats(kb, true);
   loadDocs(kb.id);
+}
+
+/* 统计卡片：HTML 生成 + 渲染 + 数据回流刷新 */
+function statsHtml(kb) {
+  return `<div class="stat-card"><div class="val" data-count="${kb.docCount || 0}">${kb.docCount || 0}</div><div class="lbl">文档数</div></div>
+    <div class="stat-card"><div class="val" data-count="${kb.chunkCount || 0}">${kb.chunkCount || 0}</div><div class="lbl">分块数</div></div>
+    <div class="stat-card"><div class="val">${kb.chunkSize || 400}</div><div class="lbl">分块大小</div></div>
+    <div class="stat-card"><div class="val">${kb.overlap || 80}</div><div class="lbl">重叠</div></div>`;
+}
+
+function renderStats(kb, animate) {
+  const statsEl = document.querySelector('#kb-body .kb-stats');
+  if (!statsEl) return;
+  statsEl.innerHTML = statsHtml(kb);
+  if (animate) {
+    statsEl.querySelectorAll('.val[data-count]').forEach(el => animateCount(el, el.dataset.count));
+  }
+}
+
+/* 从 state.kbs 取最新数据回填统计卡片（上传/轮询终态后调用） */
+function refreshKbStats() {
+  if (!state.currentKb) return;
+  const fresh = state.kbs.find(k => k.id === state.currentKb.id);
+  if (fresh) {
+    state.currentKb = fresh;
+    renderStats(fresh, false);
+  }
 }
 
 function renderKbEmpty() {
@@ -1198,8 +1292,8 @@ function renderKbEmpty() {
   });
   const body = document.getElementById('kb-body');
   body.innerHTML = `<div class="empty-state" id="kb-empty">
-    <div class="icon">kb&gt;</div>
-    <p>选择左侧知识库查看详情<br>或点击 <b>+</b> 创建新知识库</p>
+    <div class="empty-title">kb&gt;</div>
+    <p class="empty-desc">选择左侧知识库查看详情<br>或点击 <b>+</b> 创建新知识库</p>
   </div>`;
 }
 
@@ -1212,6 +1306,8 @@ function stopAllDocPolls() {
 
 async function loadDocs(kbId) {
   try {
+    renderDocListSkeleton();
+    renderStatsSkeleton();
     const data = await api('GET', `/kbs/${kbId}/documents?page=1&pageSize=100`);
     if (state.currentKb?.id !== kbId) return;
     state.docs = data?.list || [];
@@ -1224,7 +1320,10 @@ function renderDocs() {
   if (!el) return;
   el.innerHTML = '';
   if (!state.docs.length) {
-    el.innerHTML = '<div class="empty-state"><p>暂无文档</p></div>';
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-title" style="font-size:28px">暂无文档</div>
+      <p class="empty-desc">上传文档或拖拽文件到此处</p>
+    </div>`;
     return;
   }
   state.docs.forEach(d => {
@@ -1257,7 +1356,7 @@ function pollDoc(kbId, docId) {
         clearInterval(state.docPollTimers[docId]);
         delete state.docPollTimers[docId];
         renderDocs();
-        if (state.currentKb) loadKbs();
+        if (state.currentKb) loadKbs().then(refreshKbStats);
       }
     } catch (err) {
       if (err instanceof ApiError && (err.code === 40400 || err.code === 40401)) {
@@ -1286,7 +1385,7 @@ async function deleteDoc(id) {
     await api('DELETE', `/documents/${id}`);
     toast('已删除', 'ok');
     loadDocs(state.currentKb.id);
-    loadKbs();
+    loadKbs().then(refreshKbStats);
   } catch {}
 }
 
@@ -1349,6 +1448,23 @@ document.getElementById('modal-kb-ok').onclick = async () => {
 };
 
 /* Upload */
+async function uploadFile(file) {
+  if (!state.currentKb) { toast('请先选择知识库', 'err'); return; }
+  if (!file) { toast('请选择文件', 'err'); return; }
+  if (file.size > 20 * 1024 * 1024) { toast('文件超过 20MB', 'err'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    await api('POST', `/kbs/${state.currentKb.id}/documents`, fd, true);
+    toast('上传成功', 'ok');
+    loadDocs(state.currentKb.id);
+    // 同步刷新侧边栏计数与统计卡片
+    loadKbs().then(refreshKbStats);
+  } catch (err) {
+    if (err.code !== 40100 && err.code !== 40101) toast(err.message, 'err');
+  }
+}
+
 document.getElementById('btn-upload-doc').onclick = () => {
   document.getElementById('upload-file').value = '';
   document.getElementById('upload-err').textContent = '';
@@ -1364,16 +1480,8 @@ document.getElementById('modal-upload-ok').onclick = async () => {
   errEl.textContent = '';
   if (!file) { errEl.textContent = '请选择文件'; return; }
   if (file.size > 20 * 1024 * 1024) { errEl.textContent = '文件超过 20MB'; return; }
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    await api('POST', `/kbs/${state.currentKb.id}/documents`, fd, true);
-    toast('上传成功', 'ok');
-    closeModal('modal-upload');
-    loadDocs(state.currentKb.id);
-  } catch (err) {
-    if (err.code !== 40100 && err.code !== 40101) errEl.textContent = err.message;
-  }
+  await uploadFile(file);
+  closeModal('modal-upload');
 };
 
 document.getElementById('kb-search').addEventListener('input', e =>
@@ -1415,14 +1523,12 @@ document.getElementById('chat-input').addEventListener('keydown', e => {
 
 let isStreaming = false;
 
-async function sendChat() {
+async function doSend(q) {
   if (isStreaming) return;
-  const input = document.getElementById('chat-input');
-  const q = input.value.trim();
   if (!q || !state.currentConv || !state.currentKb) return;
-  input.value = '';
 
   appendMsg('user', q);
+  lastUserText = q;
   const assistantEl = appendMsg('assistant', '', true);
   isStreaming = true;
   document.getElementById('btn-send').disabled = true;
@@ -1447,6 +1553,7 @@ async function sendChat() {
         sources = data.sources || [];
         setAssistantText(assistantEl, fullContent, false);
         if (sources.length) renderSources(assistantEl, sources);
+        assistantEl.dataset.rawText = fullContent;
       } else if (eventType === 'error') {
         setAssistantText(assistantEl, '错误：' + (data.message || '未知错误'), false);
       }
@@ -1509,6 +1616,13 @@ async function sendChat() {
   }
 }
 
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  input.value = '';
+  await doSend(q);
+}
+
 function appendMsg(role, content, isPlaceholder) {
   const el = document.createElement('div');
   el.className = 'msg msg-' + role;
@@ -1517,10 +1631,43 @@ function appendMsg(role, content, isPlaceholder) {
   } else {
     el.textContent = content;
   }
+  if (role === 'assistant') {
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-sm btn-ghost';
+    copyBtn.textContent = '复制';
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(el.dataset.rawText || el.textContent);
+      toast('已复制', 'ok');
+    };
+    actions.appendChild(copyBtn);
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'btn-sm btn-ghost regen-btn';
+    regenBtn.textContent = '重新生成';
+    regenBtn.onclick = () => regenerateMsg();
+    actions.appendChild(regenBtn);
+    el.appendChild(actions);
+    // 去掉上一条 AI 消息的重新生成按钮
+    const msgs = document.querySelectorAll('#chat-messages .msg-assistant .regen-btn');
+    msgs.forEach((btn, i) => { if (i < msgs.length - 1) btn.remove(); });
+    el.dataset.rawText = content || '';
+  }
   document.getElementById('chat-messages').appendChild(el);
   document.getElementById('chat-messages').scrollTop =
     document.getElementById('chat-messages').scrollHeight;
   return el;
+}
+
+let lastUserText = '';
+function regenerateMsg() {
+  if (!lastUserText) return;
+  const msgs = document.getElementById('chat-messages');
+  const lastAssistant = msgs.querySelector('.msg-assistant:last-of-type');
+  if (lastAssistant) lastAssistant.remove();
+  const lastUser = msgs.querySelector('.msg-user:last-of-type');
+  if (lastUser) lastUser.remove();
+  doSend(lastUserText);
 }
 
 function setAssistantText(el, text, showCursor) {
@@ -1585,6 +1732,21 @@ function fmtSize(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
   return (b / 1048576).toFixed(1) + ' MB';
+}
+
+function animateCount(el, target) {
+  const n = parseInt(target) || 0;
+  if (window.matchMedia('(prefers-reduced-motion:reduce)').matches || n === 0) { el.textContent = n; return; }
+  const dur = 600;
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(n * ease);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  el.textContent = '0';
+  requestAnimationFrame(step);
 }
 
 /* ============================================================
@@ -1737,6 +1899,97 @@ window.addEventListener('resize', () => {
     if (sb.classList.contains('collapsed') !== want) setCollapsed(want);
   }
 });
+
+/* ============================================================
+   DRAG & DROP UPLOAD（document 级监听 + pointer-events:none 覆盖层，杜绝闪烁）
+   ============================================================ */
+{
+  const dropZone = document.getElementById('drop-zone');
+  let dragDepth = 0;   // dragenter/dragleave 成对计数
+  let hideTimer = null;
+
+  const canUploadNow = () =>
+    state.currentKb &&
+    document.getElementById('app-view').classList.contains('active') &&
+    document.getElementById('kb-view').style.display !== 'none';
+
+  const show = () => { clearTimeout(hideTimer); dropZone.style.display = 'flex'; };
+  const hide = () => {
+    // 延迟一帧隐藏，吸收 enter/leave 的快速抖动
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { dropZone.style.display = 'none'; }, 80);
+  };
+
+  document.addEventListener('dragenter', e => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    dragDepth++;
+    if (canUploadNow()) show();
+  });
+
+  document.addEventListener('dragleave', e => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    dragDepth--;
+    if (dragDepth <= 0) { dragDepth = 0; hide(); }
+  });
+
+  document.addEventListener('dragover', e => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();   // 必须 preventDefault 才允许 drop
+  });
+
+  document.addEventListener('drop', e => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    dragDepth = 0;
+    clearTimeout(hideTimer);
+    dropZone.style.display = 'none';
+    // 浏览器默认行为是打开文件，必须阻止
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  });
+
+  // 拖拽被取消（Esc / 拖出窗口）时兜底复位
+  window.addEventListener('dragend', () => { dragDepth = 0; dropZone.style.display = 'none'; });
+}
+
+/* ============================================================
+   KEYBOARD SHORTCUTS
+   ============================================================ */
+window.addEventListener('keydown', e => {
+  // 终端视图不拦截
+  if (document.getElementById('auth-view').classList.contains('active')) return;
+  const inInput = ['INPUT','TEXTAREA'].includes(document.target.tagName);
+
+  // Ctrl/Cmd+K 聚焦搜索
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('kb-search')?.focus();
+    return;
+  }
+  // / 聚焦搜索（不在输入框时）
+  if (e.key === '/' && !inInput) {
+    e.preventDefault();
+    document.getElementById('kb-search')?.focus();
+    return;
+  }
+  // ? 打开快捷键帮助（模态框已打开时不重复触发）
+  if (e.key === '?' && !inInput && !document.querySelector('.modal-overlay.active')) {
+    e.preventDefault();
+    openModal('modal-shortcuts');
+    return;
+  }
+  // Ctrl/Cmd+Enter 在聊天输入框内发送
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && document.activeElement?.id === 'chat-input') {
+    e.preventDefault();
+    sendChat();
+    return;
+  }
+});
+
+/* 快捷键模态框关闭 */
+document.getElementById('modal-shortcuts-close').onclick =
+  document.getElementById('modal-shortcuts-ok').onclick = () => closeModal('modal-shortcuts');
 
 /* ============================================================
    INIT

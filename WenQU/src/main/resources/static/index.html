@@ -48,6 +48,14 @@
     <button class="btn-sm btn-ghost" id="btn-logout">登出</button>
   </header>
   <div class="app-body" id="app-body">
+    <!-- 拖拽上传覆盖层 -->
+    <div class="drop-zone" id="drop-zone" style="display:none">
+      <div class="drop-zone-inner">
+        <div class="drop-icon">⬆</div>
+        <div class="drop-title">松开以上传文档</div>
+        <div class="drop-hint">支持 .txt .md .docx .pdf .xls .xlsx .ppt .pptx 等格式，≤20MB</div>
+      </div>
+    </div>
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
@@ -76,8 +84,8 @@
         </div>
         <div class="content-body" id="kb-body">
           <div class="empty-state" id="kb-empty">
-            <div class="icon">kb&gt;</div>
-            <p>选择左侧知识库查看详情<br>或点击 <b>+</b> 创建新知识库</p>
+            <div class="empty-title">kb&gt;</div>
+            <p class="empty-desc">选择左侧知识库查看详情<br>或点击 <b>+</b> 创建新知识库</p>
           </div>
         </div>
       </div>
@@ -131,6 +139,23 @@
       <button id="modal-upload-cancel">取消</button>
       <button id="modal-upload-ok">上传</button>
     </div>
+  </div>
+</div>
+
+<!-- 快捷键帮助模态框 -->
+<div class="modal-overlay" id="modal-shortcuts">
+  <div class="modal" style="width:520px">
+    <div class="modal-head"><h3>键盘快捷键</h3><button class="btn-sm btn-ghost" id="modal-shortcuts-close">✕</button></div>
+    <div class="modal-body">
+      <table class="shortcuts-table">
+        <tr><td><kbd>/</kbd></td><td>聚焦搜索框</td></tr>
+        <tr><td><kbd>?</kbd></td><td>打开此帮助面板</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>关闭模态框 / 收起侧边栏</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>聚焦搜索框</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>发送聊天消息</td></tr>
+      </table>
+    </div>
+    <div class="modal-foot"><button id="modal-shortcuts-ok">关闭</button></div>
   </div>
 </div>
 

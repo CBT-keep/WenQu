@@ -16,6 +16,10 @@
   --term-shadow:0 8px 40px rgba(0,0,0,.6);
   --shadow-pop:0 8px 28px rgba(0,0,0,.35);
 
+  /* 间距标尺 */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:28px;--sp-7:32px;
+  --pad-card:var(--sp-4);--gap-card:var(--sp-3);
+
   /* 侧边栏展开宽度的唯一来源：所有断点只改这个变量，
      .sidebar 宽度与 .sidebar-caret 坐标均由它派生，杜绝失配 */
   --sb-w:260px;
@@ -254,7 +258,7 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .kb-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
 .stat-card{
   background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:16px;display:flex;flex-direction:column;gap:4px;
+  padding:var(--pad-card);display:flex;flex-direction:column;gap:var(--gap-card);
   transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);
 }
 .stat-card:hover{border-color:var(--border-active);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1)}
@@ -264,8 +268,8 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 /* ===== DOC LIST ===== */
 .doc-list{display:grid;grid-template-columns:1fr;gap:8px}
 .doc-item{
-  display:grid;grid-template-columns:1fr 88px 84px 120px;align-items:center;gap:12px;
-  padding:12px 16px;background:var(--card);border:1px solid var(--border);
+  display:grid;grid-template-columns:1fr 88px 84px 120px;align-items:center;gap:var(--gap-card);
+  padding:var(--pad-card) var(--sp-4);background:var(--card);border:1px solid var(--border);
   border-radius:var(--r-md);font-size:13px;
   transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease);
@@ -283,14 +287,57 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* ===== EMPTY STATE ===== */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--text-muted);text-align:center}
-.empty-state .icon{font-size:48px;margin-bottom:16px;opacity:.3}
-.empty-state p{font-size:13px;margin-bottom:16px;line-height:1.8}
+.empty-title{
+  font-family:var(--font);font-size:48px;font-weight:700;color:var(--accent);
+  margin-bottom:16px;opacity:0;animation:fadeIn .6s var(--ease-out) .1s forwards;
+}
+.empty-desc{
+  font-size:13px;line-height:1.8;opacity:0;
+  animation:fadeIn .6s var(--ease-out) .3s forwards;
+}
+
+/* ===== DROP ZONE ===== */
+.drop-zone{
+  position:absolute;inset:0;z-index:50;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(3,9,15,.55);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  animation:overlayIn var(--dur-med) var(--ease) both;
+  pointer-events:none;
+}
+html.light .drop-zone{background:rgba(230,237,244,.6)}
+.drop-zone-inner{
+  border:2px dashed var(--accent);border-radius:var(--r-lg);
+  padding:48px 64px;text-align:center;color:var(--accent);
+  background:rgba(0,0,0,.15);
+  animation:dropPulse 2s ease-in-out infinite;
+}
+html.light .drop-zone-inner{background:rgba(255,255,255,.3)}
+.drop-zone .drop-icon{font-size:56px;margin-bottom:12px;opacity:.9}
+.drop-zone .drop-title{font-size:18px;font-weight:700;margin-bottom:6px}
+.drop-zone .drop-hint{font-size:12px;color:var(--text-dim);opacity:.8}
+@keyframes dropPulse{
+  0%,100%{border-color:var(--accent);box-shadow:0 0 0 0 var(--accent-dim)}
+  50%{border-color:var(--ok);box-shadow:0 0 24px 4px var(--accent-dim)}
+}
+
+/* ===== SHORTCUTS TABLE ===== */
+.shortcuts-table{width:100%;border-collapse:collapse;font-size:13px}
+.shortcuts-table tr{border-bottom:1px solid var(--border)}
+.shortcuts-table tr:last-child{border-bottom:none}
+.shortcuts-table td{padding:10px 12px;vertical-align:middle}
+.shortcuts-table td:first-child{white-space:nowrap;width:140px}
+kbd{
+  display:inline-block;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:2px 8px;font-family:var(--font);
+  font-size:12px;color:var(--text);min-width:24px;text-align:center;
+}
 
 /* ===== CHAT (terminal style) ===== */
 #chat-view{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
 /* 底部加大 padding，为悬浮玻璃输入栏留出空间，消息从其下方滑过 */
 .chat-messages{flex:1;overflow-y:auto;padding:20px 20px 92px;display:flex;flex-direction:column;gap:16px;font-size:13px;min-height:0}
-.msg{max-width:80%;padding:12px 16px;border-radius:var(--r-md);line-height:1.7;animation:fadeIn var(--dur-med) var(--ease-out) both}
+.msg{max-width:80%;padding:var(--pad-card) var(--sp-4);border-radius:var(--r-md);line-height:1.7;animation:fadeIn var(--dur-med) var(--ease-out) both}
 .msg-user{align-self:flex-end;background:var(--accent-dim);border:1px solid var(--border-active);color:var(--text);border-bottom-right-radius:var(--r-sm)}
 .msg-user::before{content:'me> ';color:var(--accent);font-weight:700}
 .msg-assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:var(--r-sm)}
@@ -327,7 +374,7 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .modal-overlay.closing .modal{animation:modalOut .22s var(--ease) both}
 .modal-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .modal-head h3{font-size:14px;color:var(--text);font-weight:600}
-.modal-body{padding:18px;display:flex;flex-direction:column;gap:12px}
+.modal-body{padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-3)}
 .modal-body label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
 .modal-body input,.modal-body textarea{width:100%;background:var(--card);padding:10px 14px;border-radius:var(--r-sm);font-size:13px}
 .modal-body textarea{min-height:60px;resize:vertical}
@@ -389,10 +436,39 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .md table th,.md table td{border:1px solid var(--border);padding:6px 10px;text-align:left}
 .md table th{background:var(--card);color:var(--text-dim)}
 .msg-assistant .md{white-space:normal}
+/* 聊天消息操作按钮 */
+.msg{position:relative}
+.msg-actions{
+  position:absolute;top:4px;right:4px;display:flex;gap:4px;
+  opacity:0;transition:opacity var(--dur-fast) var(--ease);
+}
+.msg:hover .msg-actions{opacity:1}
+.msg-actions .btn-sm{
+  padding:2px 8px;font-size:10px;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-sm);min-width:0;min-height:0;
+}
+.msg-actions .btn-sm:hover{border-color:var(--accent);background:var(--accent-dim)}
+@media(pointer:coarse){.msg-actions{opacity:1}}
 
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes blink{50%{opacity:0}}
+@keyframes authIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes themeSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* View Transitions：主题切换整页交叉淡入 */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.4s}
+/* 禁用主题按钮在切换期间的重复动画 */
+.theme-toggle.spin{animation:themeSpin .5s var(--ease-out) both}
+
+/* 骨架屏：通用扫光占位 */
+.skeleton{
+  background:linear-gradient(90deg,var(--card) 25%,var(--card-hover) 50%,var(--card) 75%);
+  background-size:200% 100%;animation:shimmer 1.2s linear infinite;
+  border-radius:var(--r-sm);color:transparent!important;pointer-events:none;
+}
+.skeleton *{visibility:hidden}
 
 /* 无障碍：跟随系统减弱动效设置 */
 @media(prefers-reduced-motion:reduce){
@@ -519,8 +595,15 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   /* 终端登录进一步压缩 */
   .auth-term-body{height:200px;padding:10px;font-size:12px}
   .auth-term-head{height:32px;padding:0 10px}
-  /* Toast 全宽 */
-  .toast{max-width:calc(100vw - 32px)}
+  /* Toast 移动端移到底部 */
+  .toast-wrap{
+    top:auto;
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    right:16px;
+    left:16px;
+    flex-direction:column-reverse;
+  }
+  .toast{max-width:100%}
 }
 
 /* --- 超小屏 (≤400px) --- */
