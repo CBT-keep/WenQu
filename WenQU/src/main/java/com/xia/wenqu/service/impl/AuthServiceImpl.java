@@ -33,19 +33,19 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     public LoginVO login(LoginDTO loginDTO) {
-        // 1. Spring Security 认证（查用户 + 状态检查 + 密码比对）
+        // Spring Security 认证
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginDTO.getUsername(), loginDTO.getPassword()));
 
-        // 2. 认证成功 → 生成 token
+        // 认证成功 → 生成 token
         String token = jwtUtil.generateToken(authentication.getName());
 
-        // 3. 查库拿完整用户信息（token 里只有用户名）
+        // 查库拿完整用户信息
         // TODO 这里可以考虑把用户信息缓存到 Redis，减少数据库查询
         User user = userMapper.findByUsername(authentication.getName());
 
-        // 4. 组装返回结果
+        // 组装返回结果
         return LoginVO.builder()
                 .token(token)
                 .expiresIn(jwtUtil.getExpireSeconds())
@@ -63,14 +63,14 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     public void register(RegisterDTO registerDTO) {
-        // 1. 用户名防重
+        // 用户名防重
         if (userMapper.countByUsername(registerDTO.getUsername()) > 0) {
             throw new BusinessException(ResultCode.USERNAME_EXISTS);
         }
-        // 2. 密码加密后入库
+        // 密码加密后入库
         User user = User.builder()
                 .username(registerDTO.getUsername())
-                .password(passwordEncoder.encode(registerDTO.getPassword()))  // ← BCrypt 加密
+                .password(passwordEncoder.encode(registerDTO.getPassword()))  // BCrypt 加密
                 .nickname(registerDTO.getNickname())
                 .role("USER")
                 .status(1)
@@ -79,7 +79,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 查询当前用户信息（token 中用户名 → 查库）
+     * 查询当前用户信息
      */
     @Override
     public UserVO getCurrentUser(String username) {
