@@ -3,10 +3,10 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.xia.wenqu.mapper.DocChunkMapper">
     <insert id="batchInsert">
-        INSERT INTO doc_chunk (document_id, kb_id, seq, content)
+            INSERT INTO doc_chunk (document_id, kb_id, seq, content, embedding)
         values
         <foreach collection="chunks" item="c" separator=",">
-            (#{c.documentId}, #{c.kbId}, #{c.seq}, #{c.content})
+                (#{c.documentId}, #{c.kbId}, #{c.seq}, #{c.content}, #{c.embedding})
         </foreach>
     </insert>
 

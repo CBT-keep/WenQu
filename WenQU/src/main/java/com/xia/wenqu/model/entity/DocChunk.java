@@ -21,5 +21,6 @@ public class DocChunk {
     private Integer seq;
     private String content;
     private String sectionPath;
+    private String embedding;
     private LocalDateTime createdAt;
 }

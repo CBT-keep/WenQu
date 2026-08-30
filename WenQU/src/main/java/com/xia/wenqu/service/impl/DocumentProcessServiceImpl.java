@@ -8,6 +8,7 @@ import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.entity.KnowledgeBase;
 import com.xia.wenqu.model.enums.DocumentStatus;
 import com.xia.wenqu.service.DocumentProcessService;
+import com.xia.wenqu.service.EmbeddingService;
 import com.xia.wenqu.service.chunker.TextChunker;
 import com.xia.wenqu.service.extractor.TextExtractorFactory;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
     private final TextExtractorFactory extractorFactory;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final TextChunker sentenceChunker;
+    private final EmbeddingService embeddingService;
 
     @Override
     @Async("docTaskExecutor")
@@ -67,13 +69,19 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
             int overlap = kb.getOverlap() == null ? 80 : kb.getOverlap();
             List<String> chunks = sentenceChunker.chunk(text, chunkSize, overlap);
 
-            // 组装成实体并批量入库，seq 从 0 开始编号
+            documentMapper.updateStatus(documentId, DocumentStatus.EMBEDDING, null);
+            log.info("[{}] 开始向量化，共 {} 块", doc.getName(), chunks.size());
+
+            List<Float[]> vectors = embeddingService.embed(chunks);
+
+            // 组装成实体并批量入库
             List<DocChunk> docChunks = IntStream.range(0, chunks.size())
                     .mapToObj(i -> DocChunk.builder()
                             .documentId(documentId)
                             .kbId(doc.getKbId())
                             .seq(i)
                             .content(chunks.get(i))
+                            .embedding(toJson(vectors.get(i)))
                             .build())
                     .collect(Collectors.toList());
             docChunkMapper.batchInsert(docChunks);
@@ -94,4 +102,19 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
             documentMapper.updateStatus(documentId, DocumentStatus.FAILED, msg);
         }
     }
-}
+
+        /**
+             * 把 Float[] 向量序列化成 JSON 数组字符串，如 [0.123,-0.456,...]
+             * 手动拼接，避免依赖 Jackson 版本差异
+             */
+            private String toJson(Float[] vector) {
+                StringBuilder sb = new StringBuilder("[");
+                for (int i = 0; i < vector.length; i++) {
+                    if (i > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(vector[i]);
+                }
+                return sb.append(']').toString();
+            }
+        }

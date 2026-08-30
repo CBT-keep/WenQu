@@ -25,3 +25,10 @@ jwt:
 
 wenqu:
   upload-dir: ./uploads
+
+ollama:
+  base-url: http://localhost:11434
+  model: nomic-embed-text
+  dimensions: 768
+  batch-size: 16
+  timeout-seconds: 120
