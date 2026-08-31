@@ -103,18 +103,18 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
         }
     }
 
-        /**
-             * 把 Float[] 向量序列化成 JSON 数组字符串，如 [0.123,-0.456,...]
-             * 手动拼接，避免依赖 Jackson 版本差异
-             */
-            private String toJson(Float[] vector) {
-                StringBuilder sb = new StringBuilder("[");
-                for (int i = 0; i < vector.length; i++) {
-                    if (i > 0) {
-                        sb.append(',');
-                    }
-                    sb.append(vector[i]);
-                }
-                return sb.append(']').toString();
+    /**
+     * 把 Float[] 向量序列化成 JSON 数组字符串，如 [0.123,-0.456,...]
+     * 手动拼接，避免依赖 Jackson 版本差异
+     */
+    private String toJson(Float[] vector) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < vector.length; i++) {
+            if (i > 0) {
+                sb.append(',');
             }
+            sb.append(vector[i]);
         }
+        return sb.append(']').toString();
+    }
+}
