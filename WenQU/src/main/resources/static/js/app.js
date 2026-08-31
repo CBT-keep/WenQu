@@ -73,6 +73,18 @@ if (savedTheme) {
 
 document.getElementById('app-theme-btn').onclick = toggleTheme;
 
+/* 顶栏音乐播放器开关
+   库会把 .netease-mini-player 替换成 <nmp-player>，真实可见元素是 .nmpv3-player，
+   显隐与右上角定位均通过 html.music-open 类门控（见 style.css） */
+(function() {
+  const btn = document.getElementById('btn-music');
+  if (!btn) return;
+  btn.onclick = () => {
+    const open = document.documentElement.classList.toggle('music-open');
+    btn.classList.toggle('active', open);
+  };
+})();
+
 /* ============================================================
    STATE
    ============================================================ */
@@ -225,10 +237,19 @@ function closeModal(id) {
 /* ============================================================
    VIEWS
    ============================================================ */
+/* 收起并暂停音乐播放器（登出/进入终端时调用） */
+function stopMusicPlayer() {
+  document.documentElement.classList.remove('music-open');
+  const btn = document.getElementById('btn-music');
+  if (btn) btn.classList.remove('active');
+  try { window.NeteaseMiniPlayer?.pauseAll?.(); } catch { /* 播放器未加载时忽略 */ }
+}
+
 function showAuth() {
   document.getElementById('auth-view').classList.add('active');
   document.getElementById('auth-view').classList.remove('fullscreen');
   document.getElementById('app-view').classList.remove('active');
+  stopMusicPlayer();
   const inp = document.getElementById('auth-input');
   if (inp) setTimeout(() => inp.focus(), 100);
 }
@@ -237,6 +258,7 @@ function showTerm() {
   document.getElementById('auth-view').classList.add('active');
   document.getElementById('auth-view').classList.add('fullscreen');
   document.getElementById('app-view').classList.remove('active');
+  stopMusicPlayer();
   updateTermTitle();
   const inp = document.getElementById('auth-input');
   if (inp) setTimeout(() => inp.focus(), 100);
@@ -1735,6 +1757,7 @@ function renderSources(el, sources) {
    LOGOUT
    ============================================================ */
 document.getElementById('btn-logout').addEventListener('click', async () => {
+  if (!confirm('确定要登出吗？')) return;
   try { await api('POST', '/auth/logout'); } catch {}
   doLogout();
 });

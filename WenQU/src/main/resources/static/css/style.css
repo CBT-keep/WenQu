@@ -47,23 +47,35 @@
 
 /* ===== LIGHT THEME ===== */
 html.light{
-  --glow-1:rgba(0,153,94,.07);--glow-2:rgba(88,120,255,.06);
-  --bg:#e8edf2;--panel:#f6f8fb;--card:#ffffff;--card-hover:#f0f4f8;
-  --border:rgba(0,0,0,.08);--border-active:rgba(0,160,100,.3);
-  --text:#1e2d3a;--text-dim:#5c6f82;--text-muted:#8e9fad;
-  --accent:#00995e;--accent-dim:rgba(0,153,94,.1);--accent-glow:rgba(0,153,94,.25);
-  --err:#d93025;--warn:#b8860b;--ok:#00995e;
-  --term-shadow:0 8px 40px rgba(0,0,0,.1);
-  --shadow-pop:0 8px 28px rgba(30,50,70,.12);
+  --glow-1:rgba(0,140,90,.06);--glow-2:rgba(80,110,220,.05);
+  --bg:#d7dce2;--panel:#e4e8ed;--card:#eef1f4;--card-hover:#e3e7ec;
+  --border:rgba(30,45,58,.22);--border-strong:rgba(30,45,58,.35);--border-active:rgba(0,140,90,.55);
+  --text:#24303c;--text-dim:#4e6070;--text-muted:#75879a;
+  --accent:#00855a;--accent-dim:rgba(0,133,90,.12);--accent-glow:rgba(0,133,90,.3);
+  --err:#c5221f;--warn:#a87408;--ok:#00855a;
+  --term-shadow:0 8px 40px rgba(30,45,58,.18);
+  --shadow-pop:0 8px 28px rgba(30,50,70,.2);
 
-  --glass-bg:rgba(246,248,251,.75);
-  --glass-bg-strong:rgba(246,248,251,.88);
+  --glass-bg:rgba(233,237,242,.8);
+  --glass-bg-strong:rgba(233,237,242,.92);
   --scrim:rgba(15,30,40,.4);
 
   /* 浅色主题降低 CRT 扫描线强度 */
   --term-scanline-opacity:0.015;
   --term-glow-intensity:0.06;
 }
+
+/* 浅色主题：结构分界线加浓，避免界面线条过淡 */
+html.light .app-header,
+html.light .sidebar,
+html.light .content-header,
+html.light .chat-input,
+html.light .auth-term-head,
+html.light .auth-term-foot{border-color:var(--border-strong)}
+html.light .sidebar-head,
+html.light .sidebar-footer,
+html.light .modal-head,
+html.light .modal-foot{border-color:var(--border-strong)}
 
 /* 环境光背景：两层极淡的主题色光晕，让半透明表面"有东西可磨"。
    承载在 html 上，body 及以下视图保持透明 */
@@ -125,20 +137,8 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   border-radius:var(--term-border-radius);
   overflow:hidden;
   box-shadow:var(--term-shadow),0 0 20px rgba(0,255,156,var(--term-glow-intensity));
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
   animation:authIn var(--dur-slow) var(--ease-out) both;
   position:relative;
-}
-.auth-terminal::before{
-  content:'';position:absolute;top:0;left:0;right:0;bottom:0;
-  background:repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,255,156,var(--term-scanline-opacity)) 2px,
-    rgba(0,255,156,var(--term-scanline-opacity)) 4px
-  );
-  pointer-events:none;z-index:1;
 }
 @keyframes authIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
 .auth-term-head{
@@ -156,13 +156,6 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .auth-term-body{
   height:340px;overflow-y:auto;padding:16px;font-size:13px;line-height:1.6;
   cursor:text;position:relative;
-}
-.auth-term-body::after{
-  content:'';position:absolute;bottom:0;left:0;right:0;height:40px;
-  background:linear-gradient(transparent,rgba(18,34,44,.9));pointer-events:none;
-}
-html.light .auth-term-body::after{
-  background:linear-gradient(transparent,rgba(246,248,251,.95));
 }
 .auth-term-body::-webkit-scrollbar{width:4px}
 .auth-term-body::-webkit-scrollbar-thumb{background:rgba(128,128,128,.15);border-radius:2px}
@@ -209,7 +202,7 @@ html.light .auth-term-body::after{
 #auth-term-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ===== APP LAYOUT ===== */
-#app-view{height:100vh;height:100dvh;flex-direction:column}
+#app-view{height:100vh;height:100dvh;flex-direction:column;position:relative}
 .app-header{
   height:var(--term-header-height);display:flex;align-items:center;padding:0 16px;gap:8px;
   border-bottom:1px solid var(--border);flex-shrink:0;
@@ -556,25 +549,19 @@ kbd{
 
 /* ===== CRT / TERMINAL VISUAL EFFECTS ===== */
 
-/* CRT 闪烁：作用于终端容器，极低频模拟老式显示器 */
-@keyframes crtFlicker{
-  0%{opacity:1}3%{opacity:.98}6%{opacity:1}50%{opacity:1}53%{opacity:.97}56%{opacity:1}100%{opacity:1}
-}
-/* authIn 用于进场动画，crtFlicker 在进场后循环闪烁 */
+/* authIn 用于进场动画 */
 .auth-terminal{
-  animation:authIn var(--dur-slow) var(--ease-out) both,
-    crtFlicker 8s linear var(--dur-slow) infinite;
+  animation:authIn var(--dur-slow) var(--ease-out) both;
 }
 
-/* 文字发光效果：accent 颜色的文字带有柔和光晕 */
 .term-hl,.term-ok,.term-prompt{
-  text-shadow:0 0 6px currentColor;
+  font-weight:700;
 }
 .term-ascii{
   text-shadow:0 0 10px var(--accent-glow),0 0 30px rgba(0,255,156,.08);
 }
-.msg-user::before{color:var(--accent);text-shadow:0 0 6px var(--accent-glow)}
-.msg-assistant::before{color:var(--ok);text-shadow:0 0 6px rgba(0,255,156,.3)}
+.msg-user::before{color:var(--accent);font-weight:700}
+.msg-assistant::before{color:var(--ok);font-weight:700}
 
 /* 输入区域增强：终端风格的命令行输入框 */
 .auth-term-foot{
@@ -584,7 +571,6 @@ kbd{
 }
 .auth-term-foot .term-prompt{
   color:var(--accent);font-weight:700;font-size:13px;
-  text-shadow:0 0 6px var(--accent-glow);
   white-space:nowrap;
 }
 .auth-term-foot .term-input-wrap{
@@ -626,6 +612,38 @@ kbd{
   box-shadow:0 0 6px var(--accent-glow);
 }
 .sidebar-item{position:relative}
+
+/* ===== 网易云音乐播放器（顶栏按钮控制） =====
+   库会将 .netease-mini-player 替换为 <nmp-player>，真实可见元素为 .nmpv3-player。
+   注意：库不保证把 data-position 复制到渲染元素上，因此定位在此用
+   高优先级规则无条件钉死右上角，不依赖库的属性选择器 */
+/* 默认隐藏，html.music-open 时显示（由顶栏按钮切换） */
+html:not(.music-open) .nmpv3-player{display:none!important}
+/* 登录/终端模式下强制隐藏 */
+#app-view:not(.active) .nmpv3-player{display:none!important}
+/* 钉死右上角、下移避开 header（双写类 + html.music-open 提高优先级，压过库注入样式） */
+html.music-open .nmpv3-player.nmpv3-player{
+  display:flex!important;
+  position:fixed!important;
+  top:calc(var(--term-header-height) + 10px)!important;
+  right:12px!important;
+  left:auto!important;
+  bottom:auto!important;
+  z-index:250!important;
+}
+/* 主题适配 */
+.nmpv3-player{
+  border-radius:var(--r-md)!important;
+  border:1px solid var(--border)!important;
+  box-shadow:var(--shadow-pop)!important;
+  font-family:var(--font)!important;
+}
+/* 顶栏音乐按钮激活态 */
+#btn-music.active{
+  border-color:var(--accent);
+  color:var(--accent);
+  box-shadow:0 0 8px var(--accent-glow);
+}
 
 /* 无障碍：跟随系统减弱动效设置 */
 @media(prefers-reduced-motion:reduce){
