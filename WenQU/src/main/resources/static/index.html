@@ -18,12 +18,13 @@
         <div class="title" id="auth-term-title">wenqu — bash — 80×24</div>
       </div>
       <div class="auth-term-body" id="auth-output">
-        <div class="term-line"><span class="term-ok">WenQu</span> <span class="term-muted">Personal Knowledge Base + RAG</span></div>
-        <div class="term-line term-muted">-------------------------------------------</div>
-        <div class="term-line">输入 <span class="term-hl">help</span> 查看可用命令</div>
+        <div class="term-line term-ascii" id="term-ascii"></div>
         <div class="term-line term-muted">&nbsp;</div>
+        <div class="term-line term-boot" data-delay="100"><span class="term-ok">Welcome to WenQu</span> <span class="term-muted">— Personal Knowledge Base + RAG</span></div>
+        <div class="term-line term-boot" data-delay="200"><span class="term-muted">Type</span> <span class="term-hl">help</span> <span class="term-muted">to see available commands</span></div>
+        <div class="term-line term-boot" data-delay="300"><span class="term-muted">&nbsp;</span></div>
       </div>
-      <div style="display:flex;align-items:center;padding:8px 16px;border-top:1px solid var(--border);gap:8px">
+      <div class="auth-term-foot">
         <span class="term-prompt" id="term-prompt">kb&gt;</span>
         <div class="term-input-wrap">
           <span class="term-text-mirror" id="auth-mirror-before"></span>

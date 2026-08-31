@@ -8,6 +8,37 @@
 const API = '/api';
 
 /* ============================================================
+   BOOT ANIMATION
+   ============================================================ */
+const ASCII_BANNER = [
+  '██╗    ██╗███████╗███╗   ██╗ ██████╗ ██╗   ██╗',
+  '██║    ██║██╔════╝████╗  ██║██╔═══██╗██║   ██║',
+  '██║ █╗ ██║█████╗  ██╔██╗ ██║██║   ██║██║   ██║',
+  '██║███╗██║██╔══╝  ██║╚██╗██║██║ ▄ ██║██║   ██║',
+  '╚███╔███╔╝███████╗██║ ╚████║╚██████╔╝╚██████╔╝',
+  ' ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝ ╚═══▀═╝  ╚═════╝ ',
+];
+
+function runBootAnimation() {
+  const asciiEl = document.getElementById('term-ascii');
+  if (!asciiEl) return;
+  asciiEl.textContent = ASCII_BANNER.join('\n');
+
+  const bootLines = document.querySelectorAll('.term-boot');
+  bootLines.forEach((line, i) => {
+    const delay = parseInt(line.getAttribute('data-delay') || '0', 10);
+    setTimeout(() => line.classList.add('visible'), 150 + delay);
+  });
+}
+
+// 页面加载后执行启动动画
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', runBootAnimation);
+} else {
+  runBootAnimation();
+}
+
+/* ============================================================
    THEME
    ============================================================ */
 function applyTheme(dark) {
