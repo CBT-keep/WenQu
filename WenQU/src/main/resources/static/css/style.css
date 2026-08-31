@@ -680,24 +680,22 @@ html.music-open .nmpv3-player.nmpv3-player{
   :root{--sb-w:300px}
   .auth-box{width:760px}
   .auth-term-body{height:420px;padding:24px;font-size:14px}
-  .content-body{padding:32px 40px;max-width:1400px;margin:0 auto}
-  .content-header{padding:20px 32px;max-width:1400px;margin:0 auto;width:100%}
-  .chat-messages{padding:32px 40px 104px;gap:20px;max-width:1200px;margin:0 auto;width:100%}
-  .chat-input{padding:18px 40px;max-width:1200px;margin:0 auto;width:100%}
+  /* 宽度约束统一上收到列容器：header 与 body 同列对齐，内部元素填满列宽。
+     width:100% 必须显式声明——flex 列布局中 margin:auto 会抑制 stretch，
+     缺省时子项宽度会收缩为内容宽度 */
+  #kb-view,#chat-view{width:100%;max-width:1400px;margin:0 auto}
+  .content-body{padding:32px 40px}
+  .content-header{padding:20px 32px}
+  .chat-messages{padding:32px 40px 104px;gap:20px}
+  .chat-input{padding:18px 40px}
   .msg{max-width:65%}
   .doc-item{grid-template-columns:1fr 110px 96px 140px}
-  .doc-list{max-width:1200px}
 }
 
 /* --- 超宽屏 (≥2560px) --- */
 @media(min-width:2560px){
-  .content-body{max-width:1600px}
-  .content-header{max-width:1600px}
-  .chat-messages{max-width:1400px}
-  .chat-input{max-width:1400px}
+  #kb-view,#chat-view{width:100%;max-width:1600px;margin:0 auto}
   .msg{max-width:55%}
-  .doc-list{max-width:1400px}
-  .kb-stats{max-width:1400px}
 }
 
 /* --- 小笔记本 (≤1366px) --- */
