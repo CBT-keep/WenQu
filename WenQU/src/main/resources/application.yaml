@@ -25,6 +25,9 @@ jwt:
 
 wenqu:
   upload-dir: ./uploads
+  register:
+    # 注册邀请码，逗号分隔；留空表示关闭注册。更换/作废邀请码只需改这里并重启
+    invite-codes: WENQU-2026
 
 ollama:
   base-url: http://localhost:11434

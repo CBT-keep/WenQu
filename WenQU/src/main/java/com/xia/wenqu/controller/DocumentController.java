@@ -2,9 +2,12 @@ package com.xia.wenqu.controller;
 
 import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.Result;
+import com.xia.wenqu.model.dto.PasswordConfirmDTO;
 import com.xia.wenqu.model.vo.DocumentVO;
 import com.xia.wenqu.security.LoginUser;
+import com.xia.wenqu.security.PasswordVerifier;
 import com.xia.wenqu.service.DocumentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +30,7 @@ import java.io.IOException;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final PasswordVerifier passwordVerifier;
 
     /**
      * 文件上传
@@ -60,5 +64,42 @@ public class DocumentController {
                                              @AuthenticationPrincipal LoginUser loginUser) {
         log.info("查询文档详情：id={}", id);
         return Result.ok(documentService.getDocument(id, loginUser.getUserId()));
+    }
+
+    /**
+     * 删除文档（软删除，进入回收站）
+     */
+    @DeleteMapping("/documents/{id}")
+    public Result<Void> deleteDocument(@PathVariable Long id,
+                                       @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("删除文档：id={}", id);
+        documentService.deleteDocument(id, loginUser.getUserId());
+        return Result.ok();
+    }
+
+    /**
+     * 从回收站恢复文档（需密码认证）
+     */
+    @PostMapping("/documents/{id}/restore")
+    public Result<Void> restoreDocument(@PathVariable Long id,
+                                        @Valid @RequestBody PasswordConfirmDTO dto,
+                                        @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("恢复文档：id={}", id);
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        documentService.restoreDocument(id, loginUser.getUserId());
+        return Result.ok();
+    }
+
+    /**
+     * 永久删除文档（需密码认证）
+     */
+    @PostMapping("/documents/{id}/purge")
+    public Result<Void> purgeDocument(@PathVariable Long id,
+                                      @Valid @RequestBody PasswordConfirmDTO dto,
+                                      @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("永久删除文档：id={}", id);
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        documentService.purgeDocument(id, loginUser.getUserId());
+        return Result.ok();
     }
 }

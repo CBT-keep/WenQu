@@ -99,6 +99,8 @@ const state = {
   chatMsgs: [],
   editingKbId: null,
   docPollTimers: {},
+  recycleAction: null,   // 回收站待认证操作 {type:'doc'|'kb', id, mode:'restore'|'purge', name}
+  recycleCache: { docs: [], kbs: [] },
 };
 
 function saveAuth(token, user) {
@@ -136,7 +138,7 @@ const HTTP_STATUS_MAP = {
   502: [50200, '外部服务错误'],
 };
 
-async function api(method, path, body, isForm) {
+async function api(method, path, body, isForm, silent) {
   const h = {};
   if (state.token) h['Authorization'] = 'Bearer ' + state.token;
   const opts = { method, headers: h };
@@ -180,7 +182,7 @@ async function api(method, path, body, isForm) {
     throw new ApiError(code, message || '未登录或 token 无效');
   }
 
-  toast(message || '请求失败', 'err');
+  if (!silent) toast(message || '请求失败', 'err');
   throw new ApiError(code, message || '请求失败');
 }
 
@@ -320,11 +322,11 @@ const term = {
   draft: '',
   pendingConfirm: null,    // {msg, cb}
   busy: false,             // 流式回答进行中
-  pendingPass: null,       // {username, isRegister} 密码输入中
+  pendingInput: null,      // {hint, mask, onSubmit} 交互式输入中（mask=true 不回显，用于密码/邀请码等）
 };
 
 function promptStr() {
-  if (term.pendingPass) return 'password>';
+  if (term.pendingInput) return term.pendingInput.mask ? 'password>' : 'input>';
   if (term.mode === 'auth') return 'kb>';
   if (term.mode === 'chat') return 'chat>';
   return term.curKb ? `wq@kb:${term.curKb.id}$` : 'wq@wenqu$';
@@ -348,7 +350,7 @@ function syncAuthMirror() {
   const v = authInput.value;
   const focused = document.activeElement === authInput;
   const caret = typeof authInput.selectionStart === 'number' ? authInput.selectionStart : v.length;
-  const masked = term.pendingPass ? v.replace(/[^\n]/g, '•') : v;
+  const masked = term.pendingInput?.mask ? v.replace(/[^\n]/g, '•') : v;
   authMirrorBefore.textContent = masked.slice(0, caret);
   authMirrorAfter.textContent = masked.slice(caret);
   if (focused || v) {
@@ -356,7 +358,7 @@ function syncAuthMirror() {
     authInput.placeholder = '';
   } else {
     authCursor.style.display = 'none';
-    authInput.placeholder = term.pendingPass ? '输入密码...' : '输入命令...';
+    authInput.placeholder = term.pendingInput ? (term.pendingInput.mask ? '输入密码...' : '输入内容...') : '输入命令...';
   }
 }
 authInput.addEventListener('input', syncAuthMirror);
@@ -414,6 +416,7 @@ const TERM_COMPLETIONS = [
   'login', 'register',
   'kb list', 'kb show', 'kb create', 'kb edit', 'kb delete', 'kb use',
   'doc list', 'doc show', 'doc upload', 'doc delete', 'doc reprocess',
+  'trash list', 'trash restore', 'trash purge',
   'conv list', 'conv new', 'conv open', 'conv delete', 'conv show',
   'chat ask',
 ];
@@ -445,16 +448,16 @@ function completeTab() {
 authInput.addEventListener('keydown', async e => {
   if (e.isComposing || e.keyCode === 229) return;
 
-  // 密码输入模式：关闭 Tab / 上下历史 / Tab 补全
-  if (term.pendingPass) {
+  // 交互式输入模式（密码/向导）：关闭 Tab / 上下历史 / Tab 补全
+  if (term.pendingInput) {
     if (e.key === 'Tab') { e.preventDefault(); return; }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); return; }
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const pwd = authInput.value;
+    const value = authInput.value;
     authInput.value = '';
     syncAuthMirror();
-    await termSubmitPass(pwd);
+    await termSubmitInput(value);
     return;
   }
 
@@ -575,32 +578,30 @@ function stripBrackets(s) {
 }
 
 /* ---- 登录/登出 ---- */
-// 交互式密码提交（SSH 风格，不回显明文）
-async function termSubmitPass(password) {
-  const ctx = term.pendingPass;
-  term.pendingPass = null;
+// 交互式输入（向导步骤）：注册一次性回调，回车提交；mask=true 时不回显（密码等敏感输入）
+function termAskInput(hint, { mask = false, onSubmit }) {
+  term.pendingInput = { hint, mask, onSubmit };
+  updatePrompt();
+  termPrint(`<span class="term-dim">${esc(hint)}${mask ? '（输入不回显）' : ''}</span>`);
+  authInput.focus();
+}
+
+// 密码输入（SSH 风格，不回显）
+function termAskPassword(hint, onSubmit) {
+  termAskInput(hint, { mask: true, onSubmit });
+}
+
+// 交互式输入提交：分发给 pendingInput 注册的回调
+async function termSubmitInput(value) {
+  const ctx = term.pendingInput;
+  term.pendingInput = null;
   updatePrompt();
   if (!ctx) return;
-  if (!password) {
+  if (ctx.mask && !value) {
     termPrint('<span class="term-warn">密码不能为空</span>');
     return;
   }
-  try {
-    if (ctx.isRegister) {
-      await api('POST', '/auth/register', { username: ctx.username, password, nickname: ctx.nickname });
-      termPrint('<span class="term-ok">✓ 注册成功</span> — 现在可以用 <span class="term-hl">login</span> 命令登录');
-      return;
-    }
-    termPrint('<span class="term-dim">认证中...</span>');
-    const data = await api('POST', '/auth/login', { username: ctx.username, password });
-    saveAuth(data.token, data.user);
-    termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || ctx.username));
-    enterAppTerm();
-  } catch (err) {
-    const isAuth = err instanceof ApiError && (err.code === 40100 || err.code === 40101);
-    if (isAuth) { handleSessionExpired(); return; }
-    termPrintErr(err);
-  }
+  await ctx.onSubmit(value);
 }
 
 async function cmdLogin(args) {
@@ -619,24 +620,100 @@ async function cmdLogin(args) {
     enterAppTerm();
     return;
   }
-  // 未提供密码 → 交互式输入（SSH 风格，不回显）
-  term.pendingPass = { username, isRegister: false };
-  updatePrompt();
-  termPrint('<span class="term-dim">请输入密码（输入不回显）</span>');
-  authInput.focus();
+  termAskPassword('请输入密码', async password => {
+    try {
+      termPrint('<span class="term-dim">认证中...</span>');
+      const data = await api('POST', '/auth/login', { username, password });
+      saveAuth(data.token, data.user);
+      termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || username));
+      enterAppTerm();
+    } catch (err) {
+      const isAuth = err instanceof ApiError && (err.code === 40100 || err.code === 40101);
+      if (isAuth) { handleSessionExpired(); return; }
+      termPrintErr(err);
+    }
+  });
 }
 
 async function cmdRegister(args) {
-  if (args.length < 1) {
-    termPrint('<span class="term-warn">用法：register &lt;用户名&gt; [昵称]</span><span class="term-dim"> — 密码将交互式输入</span>');
-    return;
+  const USERNAME_RE = /^[A-Za-z0-9_]{2,20}$/;
+  const preset = args[0] ? stripBrackets(args[0]) : null;
+  if (args.length > 1) {
+    termPrint('<span class="term-warn">出于安全考虑，密码不再通过命令行输入，请按向导逐步填写</span>');
   }
-  const username = args[0];
-  const nickname = args.slice(1).join(' ') || undefined;
-  term.pendingPass = { username, isRegister: true, nickname };
-  updatePrompt();
-  termPrint('<span class="term-dim">设置密码（输入不回显）</span>');
-  authInput.focus();
+  termPrint(`<span class="term-hl">— 注册向导 —</span><span class="term-dim">逐步输入，回车确认；邀请码请向管理员获取</span>`);
+
+  const askUsername = () => termAskInput('第 1/4 步 · 请输入用户名（2~20 位字母/数字/下划线，不含空格）', {
+    onSubmit: u => {
+      u = (u || '').trim();
+      if (!u) { termPrint('<span class="term-warn">用户名不能为空</span>'); askUsername(); return; }
+      if (!USERNAME_RE.test(u)) {
+        termPrint('<span class="term-warn">用户名格式不合法：需为 2~20 位字母/数字/下划线，且不含空格</span>');
+        askUsername();
+        return;
+      }
+      askNickname(u);
+    }
+  });
+
+  const askNickname = username => termAskInput(`第 2/4 步 · 为 [${username}] 设置昵称（可选，直接回车跳过）`, {
+    onSubmit: nickname => askInvite(username, (nickname || '').trim() || undefined)
+  });
+
+  const askInvite = (username, nickname) => termAskInput(`第 3/4 步 · 请输入邀请码（防批量注册，向管理员获取）`, {
+    onSubmit: code => {
+      code = (code || '').trim();
+      if (!code) { termPrint('<span class="term-warn">邀请码不能为空</span>'); askInvite(username, nickname); return; }
+      askPassword(username, nickname, code);
+    }
+  });
+
+  const askPassword = (username, nickname, inviteCode) => termAskPassword(
+    `第 4/4 步 · 请为账号 [${username}] 设置登录密码（6~32 位，只输入密码本身）`, password => {
+      if (/\s/.test(password)) {
+        termPrint('<span class="term-warn">密码不能包含空格，请重新设置</span>');
+        askPassword(username, nickname, inviteCode);
+        return;
+      }
+      if (password.length < 6 || password.length > 32) {
+        termPrint('<span class="term-warn">密码长度需在 6~32 位之间，请重新设置</span>');
+        askPassword(username, nickname, inviteCode);
+        return;
+      }
+      termAskPassword('请再次输入同一密码以确认（两次一致才会注册）', confirm => {
+        if (confirm !== password) {
+          termPrint('<span class="term-err">✗ 两次输入的密码不一致，请重新设置</span>');
+          askPassword(username, nickname, inviteCode);
+          return;
+        }
+        submitRegister(username, password, nickname, inviteCode);
+      });
+    });
+
+  const submitRegister = async (username, password, nickname, inviteCode) => {
+    termPrint('<span class="term-dim">提交注册...</span>');
+    try {
+      await api('POST', '/auth/register', { username, password, nickname, inviteCode });
+      termPrint(`<span class="term-ok">✓ 注册成功</span> — 用户名 <span class="term-hl">${esc(username)}</span>，现在可以用 <span class="term-hl">login ${esc(username)}</span> 登录`);
+    } catch (err) {
+      const isAuth = err instanceof ApiError && (err.code === 40100 || err.code === 40101);
+      if (isAuth) { handleSessionExpired(); return; }
+      termPrintErr(err);
+      termPrint('<span class="term-dim">可重新运行 <span class="term-hl">register</span> 再试</span>');
+    }
+  };
+
+  if (preset) {
+    if (!USERNAME_RE.test(preset)) {
+      termPrint('<span class="term-warn">命令行提供的用户名格式不合法，请在向导中重新输入</span>');
+      askUsername();
+      return;
+    }
+    termPrint(`<span class="term-dim">用户名：</span><span class="term-ok">${esc(preset)}</span>`);
+    askNickname(preset);
+  } else {
+    askUsername();
+  }
 }
 
 function enterAppTerm() {
@@ -671,7 +748,7 @@ function doLogout() {
   term.curConv = null;
   term.busy = false;
   term.pendingConfirm = null;
-  term.pendingPass = null;
+  term.pendingInput = null;
   updatePrompt();
   updateTermTitle();
   showAuth();
@@ -688,7 +765,7 @@ function handleSessionExpired() {
   term.curConv = null;
   term.busy = false;
   term.pendingConfirm = null;
-  term.pendingPass = null;
+  term.pendingInput = null;
   updatePrompt();
   updateTermTitle();
   showAuth();
@@ -714,7 +791,7 @@ const TERM_CMDS = {
       const authLines = [
         ['help', '显示帮助'],
         ['login <用户名> <密码>', '登录'],
-        ['register <用户名> [昵称]', '注册（密码交互式输入）'],
+        ['register [用户名]', '注册（交互式向导：需邀请码，密码二次确认）'],
         ['theme', '切换明/暗主题'],
         ['clear', '清屏'],
       ];
@@ -734,6 +811,7 @@ const TERM_CMDS = {
         ['logout', '退出登录'],
         ['kb list|show|create|edit|delete|use', '知识库管理'],
         ['doc list|show|upload|delete|reprocess', '文档管理'],
+        ['trash list|restore|purge', '回收站（恢复/永久删除，需密码）'],
         ['conv list|new|open|delete|show', '会话管理'],
         ['chat [ask <问题>]', '对话模式 / 直接提问'],
       ],
@@ -749,8 +827,15 @@ const TERM_CMDS = {
         ['doc list [kbId]', '文档列表（默认当前知识库）'],
         ['doc show <id>', '文档详情'],
         ['doc upload [kbId]', '上传文档（弹出文件选择）'],
-        ['doc delete <id>', '删除文档'],
+        ['doc delete <id>', '删除文档（进入回收站）'],
         ['doc reprocess <id>', '重新处理文档'],
+      ],
+      trash: [
+        ['trash list [doc|kb]', '查看回收站（默认全部）'],
+        ['trash restore doc <id>', '恢复文档（需密码）'],
+        ['trash restore kb <id>', '恢复知识库及其下文档（需密码）'],
+        ['trash purge doc <id>', '永久删除文档，不可恢复（需密码）'],
+        ['trash purge kb <id>', '永久删除知识库，不可恢复（需密码）'],
       ],
       conv: [
         ['conv list', '会话列表'],
@@ -895,7 +980,7 @@ const TERM_CMDS = {
         const id = num(args[0]);
         if (!id) { termPrint('<span class="term-warn">用法：kb delete &lt;id&gt;</span>'); return; }
         const k = await api('GET', `/kbs/${id}`);
-        termConfirm(`删除知识库「${k.name}」？将级联删除所有文档`, async ok => {
+        termConfirm(`删除知识库「${k.name}」？其下所有文档将一并进入回收站`, async ok => {
           if (!ok) { termPrint('<span class="term-dim">已取消</span>'); return; }
           await api('DELETE', `/kbs/${id}`);
           if (term.curKb?.id === id) { term.curKb = null; term.curConv = null; }
@@ -968,10 +1053,10 @@ const TERM_CMDS = {
         const id = num(args[0]);
         if (!id) { termPrint('<span class="term-warn">用法：doc delete &lt;id&gt;</span>'); return; }
         const x = await api('GET', `/documents/${id}`);
-        termConfirm(`删除文档「${x.name}」？`, async ok => {
+        termConfirm(`删除文档「${x.name}」？（进入回收站，可恢复）`, async ok => {
           if (!ok) { termPrint('<span class="term-dim">已取消</span>'); return; }
           await api('DELETE', `/documents/${id}`);
-          termPrint(`<span class="term-ok">✓ 已删除 #${id}</span>`);
+          termPrint(`<span class="term-ok">✓ 已删除 #${id}</span> <span class="term-dim">— trash restore doc ${id} 可恢复</span>`);
         });
         break;
       }
@@ -984,6 +1069,73 @@ const TERM_CMDS = {
       }
       default:
         await TERM_CMDS.help('doc');
+    }
+  },
+
+  /* ---- 回收站 ---- */
+  async trash(c1, args) {
+    const KIND_LABEL = { doc: '文档', kb: '知识库' };
+    const loadDocs = () => api('GET', '/recycle/documents');
+    const loadKbs = () => api('GET', '/recycle/kbs');
+    switch (c1) {
+      case 'list': {
+        const kind = (args[0] || '').toLowerCase();
+        if (kind && kind !== 'doc' && kind !== 'kb') {
+          termPrint('<span class="term-warn">用法：trash list [doc|kb]</span>');
+          return;
+        }
+        if (kind !== 'doc') {
+          const kbs = await loadKbs();
+          if (!kbs.length) termPrint('<span class="term-dim">回收站中没有知识库</span>');
+          for (const k of kbs) {
+            termPrint(`<span class="term-hl">#${k.id}</span> ${esc(k.name)} <span class="term-muted">— ${k.docCount || 0} 文档 · 删除于 ${fmtTime(k.deletedAt)}</span>`);
+          }
+        }
+        if (kind !== 'kb') {
+          const docs = await loadDocs();
+          if (!docs.length) termPrint('<span class="term-dim">回收站中没有文档</span>');
+          for (const d of docs) {
+            termPrint(`<span class="term-hl">#${d.id}</span> ${esc(d.name)} <span class="term-muted">— ${esc(d.kbName || 'kb#' + d.kbId)} · ${fmtSize(d.size)} · ${d.chunkCount || 0} 分块 · 删除于 ${fmtTime(d.deletedAt)}</span>`);
+          }
+        }
+        termPrint(`<span class="term-dim">trash restore doc|kb &lt;id&gt; 恢复 · trash purge doc|kb &lt;id&gt; 永久删除（均需密码）</span>`);
+        break;
+      }
+      case 'restore':
+      case 'purge': {
+        const kind = (args[0] || '').toLowerCase();
+        const id = num(args[1]);
+        if ((kind !== 'doc' && kind !== 'kb') || !id) {
+          termPrint(`<span class="term-warn">用法：trash ${c1} doc|kb &lt;id&gt;</span>`);
+          return;
+        }
+        const list = kind === 'doc' ? await loadDocs() : await loadKbs();
+        const item = list.find(x => x.id === id);
+        if (!item) {
+          termPrint(`<span class="term-err">回收站中不存在该${KIND_LABEL[kind]}：#${id}</span> — 用 <span class="term-hl">trash list</span> 查看`);
+          return;
+        }
+        const verb = c1 === 'purge' ? '永久删除' : '恢复';
+        termConfirm(
+          `${verb}${KIND_LABEL[kind]}「${item.name}」${c1 === 'purge' ? '？此操作不可恢复！' : ''}`,
+          ok => {
+            if (!ok) { termPrint('<span class="term-dim">已取消</span>'); return; }
+            termAskPassword('请输入密码完成身份认证', async pwd => {
+              try {
+                termPrint('<span class="term-dim">认证中...</span>');
+                const path = kind === 'doc' ? `/documents/${id}/${c1}` : `/kbs/${id}/${c1}`;
+                await api('POST', path, { password: pwd });
+                termPrint(`<span class="term-ok">✓ 已${verb} #${id} ${esc(item.name)}</span>`);
+              } catch (err) {
+                termPrintErr(err);
+              }
+            });
+          }
+        );
+        break;
+      }
+      default:
+        await TERM_CMDS.help('trash');
     }
   },
 
@@ -1433,14 +1585,127 @@ async function reprocessDoc(id) {
 }
 
 async function deleteDoc(id) {
-  if (!confirm('确认删除该文档？')) return;
+  if (!confirm('确认删除该文档？删除后可在回收站恢复。')) return;
   try {
     await api('DELETE', `/documents/${id}`);
-    toast('已删除', 'ok');
+    toast('已删除，可在回收站恢复', 'ok');
     loadDocs(state.currentKb.id);
     loadKbs().then(refreshKbStats);
   } catch {}
 }
+
+/* ============================================================
+   RECYCLE BIN（GUI）
+   ============================================================ */
+function fmtTime(ts) {
+  return ts ? new Date(ts).toLocaleString() : '-';
+}
+
+document.getElementById('btn-recycle').onclick = openRecycleModal;
+
+async function openRecycleModal() {
+  openModal('modal-recycle');
+  await refreshRecycleModal();
+}
+
+async function refreshRecycleModal() {
+  if (!document.getElementById('modal-recycle').classList.contains('active')) return;
+  const loading = '<div style="color:var(--text-dim);font-size:13px;padding:6px 0">加载中...</div>';
+  document.getElementById('recycle-doc-list').innerHTML = loading;
+  document.getElementById('recycle-kb-list').innerHTML = loading;
+  try {
+    const [docs, kbs] = await Promise.all([
+      api('GET', '/recycle/documents'),
+      api('GET', '/recycle/kbs'),
+    ]);
+    state.recycleCache.docs = docs || [];
+    state.recycleCache.kbs = kbs || [];
+  } catch {
+    state.recycleCache.docs = [];
+    state.recycleCache.kbs = [];
+  }
+  renderRecycleLists();
+}
+
+function recycleItemHtml(item, type) {
+  const meta = type === 'doc'
+    ? `${esc(item.kbName || 'kb#' + item.kbId)} · ${fmtSize(item.size)} · ${item.chunkCount || 0} 分块`
+    : `${item.docCount || 0} 个文档`;
+  return `
+    <div class="doc-name">${esc(item.name)}</div>
+    <span class="badge badge-dim">${esc(item.type ? ('.' + item.type) : (type === 'doc' ? '文档' : '知识库'))}</span>
+    <div class="doc-size">${meta}<br><span style="font-size:11px;opacity:.75">删除于 ${fmtTime(item.deletedAt)}</span></div>
+    <div class="doc-actions">
+      <button class="btn-sm" onclick="recycleAct('${type}', ${item.id}, 'restore')">恢复</button>
+      <button class="btn-sm btn-err" onclick="recycleAct('${type}', ${item.id}, 'purge')">永久删除</button>
+    </div>`;
+}
+
+function renderRecycleLists() {
+  const emptyHint = '<div style="color:var(--text-dim);font-size:13px;padding:4px 0">暂无内容</div>';
+  const docs = state.recycleCache.docs;
+  const kbs = state.recycleCache.kbs;
+  document.getElementById('recycle-doc-list').innerHTML = docs.length
+    ? docs.map(d => `<div class="doc-item">${recycleItemHtml(d, 'doc')}</div>`).join('')
+    : emptyHint;
+  document.getElementById('recycle-kb-list').innerHTML = kbs.length
+    ? kbs.map(k => `<div class="doc-item">${recycleItemHtml(k, 'kb')}</div>`).join('')
+    : emptyHint;
+}
+
+/* 回收站最终操作入口：弹密码认证模态框（供内联 onclick 调用） */
+function recycleAct(type, id, mode) {
+  const cache = type === 'doc' ? state.recycleCache.docs : state.recycleCache.kbs;
+  const item = cache.find(x => x.id === id);
+  const name = item?.name || ('#' + id);
+  state.recycleAction = { type, id, mode, name };
+  document.getElementById('modal-password-title').textContent =
+    mode === 'purge' ? `永久删除${type === 'doc' ? '文档' : '知识库'}` : `恢复${type === 'doc' ? '文档' : '知识库'}`;
+  document.getElementById('modal-password-desc').textContent =
+    (mode === 'purge'
+      ? `即将永久删除「${name}」，此操作不可恢复！`
+      : `即将恢复「${name}」。`)
+    + '请输入登录密码完成身份认证。';
+  document.getElementById('mp-password').value = '';
+  document.getElementById('mp-err').textContent = '';
+  openModal('modal-password');
+}
+
+async function confirmPasswordAction() {
+  const a = state.recycleAction;
+  if (!a) return;
+  const pwd = document.getElementById('mp-password').value;
+  const errEl = document.getElementById('mp-err');
+  if (!pwd) { errEl.textContent = '请输入密码'; return; }
+  errEl.textContent = '';
+  const path = a.type === 'doc' ? `/documents/${a.id}/${a.mode}` : `/kbs/${a.id}/${a.mode}`;
+  try {
+    await api('POST', path, { password: pwd }, false, true);
+    closeModal('modal-password');
+    state.recycleAction = null;
+    toast(a.mode === 'purge' ? '已永久删除' : '已恢复', 'ok');
+    await refreshRecycleModal();
+    loadKbs().then(refreshKbStats);
+    if (state.currentKb) loadDocs(state.currentKb.id);
+  } catch (err) {
+    if (err.code === 40100 || err.code === 40101) return;
+    errEl.textContent = err.message || '认证失败';
+  }
+}
+
+document.getElementById('modal-recycle-close').onclick =
+  document.getElementById('modal-recycle-ok').onclick = () => closeModal('modal-recycle');
+
+document.getElementById('modal-password-close').onclick =
+  document.getElementById('modal-password-cancel').onclick = () => {
+    state.recycleAction = null;
+    closeModal('modal-password');
+  };
+
+document.getElementById('modal-password-ok').onclick = confirmPasswordAction;
+document.getElementById('mp-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); confirmPasswordAction(); }
+});
 
 /* KB CRUD */
 document.getElementById('btn-new-kb').onclick = () => openKbModal();
@@ -1449,10 +1714,10 @@ document.getElementById('btn-edit-kb').onclick = () => {
   openKbModal(state.currentKb);
 };
 document.getElementById('btn-del-kb').onclick = async () => {
-  if (!state.currentKb || !confirm('确认删除知识库「' + state.currentKb.name + '」？将级联删除所有文档。')) return;
+  if (!state.currentKb || !confirm('确认删除知识库「' + state.currentKb.name + '」？其下所有文档将一并进入回收站。')) return;
   try {
     await api('DELETE', `/kbs/${state.currentKb.id}`);
-    toast('已删除', 'ok');
+    toast('已删除，可在回收站恢复', 'ok');
     stopAllDocPolls();
     state.currentKb = null;
     renderKbEmpty();
@@ -1932,8 +2197,8 @@ if (contentArea) {
 // Esc：优先关闭最上层模态框，其次收起移动端抽屉
 window.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  const openModalEl = document.querySelector('.modal-overlay.active:not(.closing)');
-  if (openModalEl) { closeModal(openModalEl.id); return; }
+  const openModals = document.querySelectorAll('.modal-overlay.active:not(.closing)');
+  if (openModals.length) { closeModal(openModals[openModals.length - 1].id); return; }
   if (isMobile() && document.getElementById('app-body').classList.contains('sidebar-open')) closeMobileSidebar();
 });
 

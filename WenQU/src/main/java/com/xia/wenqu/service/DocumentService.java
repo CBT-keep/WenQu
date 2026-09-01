@@ -28,4 +28,19 @@ public interface DocumentService {
      * 文档详情
      */
     DocumentVO getDocument(Long id, Long userId);
+
+    /**
+     * 删除文档（软删除，进入回收站，磁盘文件与分块保留）
+     */
+    void deleteDocument(Long id, Long userId);
+
+    /**
+     * 从回收站恢复文档（分块保留时恢复后向量立即可用）
+     */
+    void restoreDocument(Long id, Long userId);
+
+    /**
+     * 永久删除文档：物理删除分块、文档行与磁盘文件
+     */
+    void purgeDocument(Long id, Long userId);
 }

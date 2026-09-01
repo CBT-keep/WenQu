@@ -12,11 +12,17 @@ import com.xia.wenqu.service.AuthService;
 import com.xia.wenqu.utils.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +33,12 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+
+    /**
+     * 注册邀请码，逗号分隔；留空表示关闭注册
+     */
+    @Value("${wenqu.register.invite-codes:}")
+    private String inviteCodes;
 
     /**
      * 用户登陆
@@ -63,6 +75,19 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     public void register(RegisterDTO registerDTO) {
+        // 邀请码校验：未配置视为关闭注册，配置后必须精确匹配（忽略大小写）
+        Set<String> codes = Arrays.stream(inviteCodes.split(","))
+                .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                .filter(code -> !code.isEmpty())
+                .collect(Collectors.toSet());
+        if (codes.isEmpty()) {
+            throw new BusinessException(ResultCode.INVITE_CODE_INVALID, "当前未开放注册");
+        }
+        if (registerDTO.getInviteCode() == null
+                || !codes.contains(registerDTO.getInviteCode().trim().toUpperCase(Locale.ROOT))) {
+            throw new BusinessException(ResultCode.INVITE_CODE_INVALID, "邀请码无效或已失效");
+        }
+
         // 用户名防重
         if (userMapper.countByUsername(registerDTO.getUsername()) > 0) {
             throw new BusinessException(ResultCode.USERNAME_EXISTS);

@@ -16,6 +16,12 @@ public class RegisterDTO {
     @Size(min = 6, max = 32, message = "密码长度需在 6~32 之间")
     private String password;
 
+    /**
+     * 注册邀请码，服务端配置校验，防批量注册
+     */
+    @NotBlank(message = "邀请码不能为空")
+    private String inviteCode;
+
     @Size(max = 32)
     private String nickname;
 }

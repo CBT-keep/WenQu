@@ -37,6 +37,7 @@ CREATE TABLE `knowledge_base` (
     `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `deleted` tinyint NOT NULL DEFAULT '0',
+    `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间, 回收站展示与后续自动清理用',
     PRIMARY KEY (`id`),
     KEY `idx_user` (`user_id`,`deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='知识库';
@@ -58,6 +59,7 @@ CREATE TABLE `document` (
     `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `deleted` tinyint NOT NULL DEFAULT '0',
+    `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间, 回收站展示与后续自动清理用',
     PRIMARY KEY (`id`),
     KEY `idx_kb` (`kb_id`,`deleted`),
     KEY `idx_user` (`user_id`,`deleted`)
@@ -108,3 +110,12 @@ CREATE TABLE `message` (
     PRIMARY KEY (`id`),
     KEY `idx_conversation` (`conversation_id`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='会话消息';
+
+-- ============================================================
+-- 存量库升级脚本（已建库时手动执行）
+-- 回收站功能新增软删除时间字段
+-- ============================================================
+-- ALTER TABLE `knowledge_base`
+--     ADD COLUMN `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间, 回收站展示与后续自动清理用' AFTER `deleted`;
+-- ALTER TABLE `document`
+--     ADD COLUMN `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间, 回收站展示与后续自动清理用' AFTER `deleted`;

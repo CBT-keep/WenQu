@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WenQu · 终端知识库</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="stylesheet" href="css/style.css?v=20260831">
+<link rel="stylesheet" href="css/style.css?v=20260901">
 <link rel="stylesheet" href="https://api.hypcvgm.top/NeteaseMiniPlayer/netease-mini-player-v2.css" />
 </head>
 <body>
@@ -80,6 +80,7 @@
       <div id="kb-view">
         <div class="content-header">
           <h2 id="kb-title">选择一个知识库</h2>
+          <button class="btn-sm" id="btn-recycle" title="回收站：恢复或永久删除">回收站</button>
           <button class="btn-sm" id="btn-upload-doc" style="display:none">上传文档</button>
           <button class="btn-sm" id="btn-edit-kb" style="display:none">编辑</button>
           <button class="btn-sm btn-err" id="btn-del-kb" style="display:none">删除</button>
@@ -170,10 +171,41 @@
   </div>
 </div>
 
+<!-- 回收站模态框 -->
+<div class="modal-overlay" id="modal-recycle">
+  <div class="modal" style="width:640px">
+    <div class="modal-head"><h3>回收站</h3><button class="btn-sm btn-ghost" id="modal-recycle-close">✕</button></div>
+    <div class="modal-body">
+      <div class="sidebar-title" style="padding-left:0">文档</div>
+      <div id="recycle-doc-list"></div>
+      <div class="sidebar-title" style="padding-left:0;margin-top:12px">知识库</div>
+      <div id="recycle-kb-list"></div>
+    </div>
+    <div class="modal-foot"><button id="modal-recycle-ok">关闭</button></div>
+  </div>
+</div>
+
+<!-- 最终操作密码认证模态框 -->
+<div class="modal-overlay" id="modal-password">
+  <div class="modal" style="width:400px">
+    <div class="modal-head"><h3 id="modal-password-title">身份认证</h3><button class="btn-sm btn-ghost" id="modal-password-close">✕</button></div>
+    <div class="modal-body">
+      <p id="modal-password-desc" style="color:var(--text-dim);font-size:13px;margin-bottom:8px"></p>
+      <label>登录密码 *</label>
+      <input type="password" id="mp-password" autocomplete="off" placeholder="输入当前账号密码">
+      <div class="err-msg" id="mp-err" style="color:var(--err);font-size:12px;min-height:18px"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="modal-password-cancel">取消</button>
+      <button id="modal-password-ok">确认</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toast-wrap"></div>
 <input type="file" id="term-file-input" accept=".txt,.md,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.html,.csv,.epub" style="display:none">
 
-<script src="js/app.js?v=20260831"></script>
+<script src="js/app.js?v=20260901"></script>
 <script src="https://api.hypcvgm.top/NeteaseMiniPlayer/netease-mini-player-v2.js"></script>
 </body>
 </html>

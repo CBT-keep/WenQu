@@ -41,4 +41,42 @@
     <update id="updateFilePath">
         UPDATE `document` SET file_path = #{filePath}, status = #{status} WHERE id = #{id}
     </update>
+
+    <select id="selectDeletedByUserId" resultType="com.xia.wenqu.model.vo.RecycleDocVO">
+        SELECT d.id, d.kb_id, kb.name AS kb_name, d.name, d.type, d.size,
+               (SELECT COUNT(*) FROM doc_chunk c WHERE c.document_id = d.id) AS chunk_count,
+               CAST(UNIX_TIMESTAMP(d.deleted_at) * 1000 AS UNSIGNED) AS deleted_at
+        FROM `document` d
+        LEFT JOIN knowledge_base kb ON kb.id = d.kb_id
+        WHERE d.user_id = #{userId} AND d.deleted = 1
+        ORDER BY d.deleted_at DESC
+    </select>
+
+    <select id="selectDeletedEntityById" resultType="com.xia.wenqu.model.entity.Document">
+        SELECT * FROM `document` WHERE id = #{id} AND deleted = 1
+    </select>
+
+    <update id="softDelete">
+        UPDATE `document` SET deleted = 1, deleted_at = NOW() WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="restoreById">
+        UPDATE `document` SET deleted = 0, deleted_at = NULL WHERE id = #{id} AND deleted = 1
+    </update>
+
+    <delete id="deletePhysically">
+        DELETE FROM `document` WHERE id = #{id}
+    </delete>
+
+    <select id="selectDeletedByKbId" resultType="com.xia.wenqu.model.entity.Document">
+        SELECT * FROM `document` WHERE kb_id = #{kbId} AND deleted = 1
+    </select>
+
+    <update id="restoreByKbId">
+        UPDATE `document` SET deleted = 0, deleted_at = NULL WHERE kb_id = #{kbId} AND deleted = 1
+    </update>
+
+    <delete id="deletePhysicallyByKbId">
+        DELETE FROM `document` WHERE kb_id = #{kbId}
+    </delete>
 </mapper>

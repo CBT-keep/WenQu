@@ -5,17 +5,22 @@ import com.github.pagehelper.PageHelper;
 import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.ResultCode;
 import com.xia.wenqu.common.exception.BusinessException;
+import com.xia.wenqu.mapper.DocumentMapper;
 import com.xia.wenqu.mapper.KnowledgeBaseMapper;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.dto.KbUpdateDTO;
+import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.entity.KnowledgeBase;
 import com.xia.wenqu.model.vo.KBVO;
 import com.xia.wenqu.service.KnowledgeBaseService;
+import com.xia.wenqu.utils.UploadFileCleaner;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +31,8 @@ import java.util.List;
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final DocumentMapper documentMapper;
+    private final UploadFileCleaner uploadFileCleaner;
 
     /**
      * 创建知识库
@@ -135,7 +142,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     /**
-     * 删除知识库
+     * 删除知识库（软删除）：级联软删除其下文档；分块保留以支持回收站恢复，永久删除时才物理清理
      */
     @Override
     @Transactional
@@ -151,6 +158,46 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         // 删除级联下的所有相关文档
         knowledgeBaseMapper.deleteDocumentsByKbId(id);
+    }
+
+    /**
+     * 恢复知识库：级联恢复其下所有软删除文档
+     */
+    @Override
+    @Transactional
+    public void restoreKnowledgeBase(Long id, Long userId) {
+        KnowledgeBase kb = knowledgeBaseMapper.selectDeletedByIdAndUserId(id, userId);
+        if (kb == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND);
+        }
+        knowledgeBaseMapper.restoreById(id);
+        documentMapper.restoreByKbId(id);
+    }
+
+    /**
+     * 永久删除知识库：物理删除分块、文档行与知识库行，事务提交后清理磁盘文件
+     */
+    @Override
+    @Transactional
+    public void purgeKnowledgeBase(Long id, Long userId) {
+        KnowledgeBase kb = knowledgeBaseMapper.selectDeletedByIdAndUserId(id, userId);
+        if (kb == null) {
+            throw new BusinessException(ResultCode.KB_NOT_FOUND);
+        }
+
+        // 取磁盘文件路径，供事务提交后清理
+        List<Document> docs = documentMapper.selectDeletedByKbId(id);
+
         knowledgeBaseMapper.deleteChunksByKbId(id);
+        documentMapper.deletePhysicallyByKbId(id);
+        knowledgeBaseMapper.deletePhysically(id);
+
+        // 事务提交后再删磁盘文件，DB 回滚时不丢文件
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                docs.forEach(doc -> uploadFileCleaner.deleteQuietly(doc.getFilePath()));
+            }
+        });
     }
 }

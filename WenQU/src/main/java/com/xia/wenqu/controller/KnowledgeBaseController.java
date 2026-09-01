@@ -4,8 +4,10 @@ import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.Result;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.dto.KbUpdateDTO;
+import com.xia.wenqu.model.dto.PasswordConfirmDTO;
 import com.xia.wenqu.model.vo.KBVO;
 import com.xia.wenqu.security.LoginUser;
+import com.xia.wenqu.security.PasswordVerifier;
 import com.xia.wenqu.service.KnowledgeBaseService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
+    private final PasswordVerifier passwordVerifier;
 
     /**
      * 创建知识库
@@ -79,6 +82,32 @@ public class KnowledgeBaseController {
                                             @AuthenticationPrincipal LoginUser loginUser) {
         log.info("删除知识库:id={}", id);
         knowledgeBaseService.deleteKnowledgeBase(id, loginUser.getUserId());
+        return Result.ok();
+    }
+
+    /**
+     * 从回收站恢复知识库（需密码认证），级联恢复其下所有软删除文档
+     */
+    @PostMapping("/{id}/restore")
+    public Result<Void> restoreKnowledgeBase(@PathVariable Long id,
+                                             @Valid @RequestBody PasswordConfirmDTO dto,
+                                             @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("恢复知识库:id={}", id);
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        knowledgeBaseService.restoreKnowledgeBase(id, loginUser.getUserId());
+        return Result.ok();
+    }
+
+    /**
+     * 永久删除知识库（需密码认证），级联物理删除其下文档与磁盘文件
+     */
+    @PostMapping("/{id}/purge")
+    public Result<Void> purgeKnowledgeBase(@PathVariable Long id,
+                                           @Valid @RequestBody PasswordConfirmDTO dto,
+                                           @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("永久删除知识库:id={}", id);
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        knowledgeBaseService.purgeKnowledgeBase(id, loginUser.getUserId());
         return Result.ok();
     }
 }

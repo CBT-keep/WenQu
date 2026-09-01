@@ -21,4 +21,5 @@ public class KnowledgeBase {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer deleted;
+    private LocalDateTime deletedAt;
 }

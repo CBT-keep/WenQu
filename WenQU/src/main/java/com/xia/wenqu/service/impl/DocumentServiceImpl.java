@@ -5,6 +5,7 @@ import com.github.pagehelper.PageHelper;
 import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.ResultCode;
 import com.xia.wenqu.common.exception.BusinessException;
+import com.xia.wenqu.mapper.DocChunkMapper;
 import com.xia.wenqu.mapper.DocumentMapper;
 import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.enums.DocumentStatus;
@@ -14,6 +15,7 @@ import com.xia.wenqu.service.DocumentService;
 import com.xia.wenqu.service.KnowledgeBaseService;
 import com.xia.wenqu.service.extractor.TextExtractor;
 import com.xia.wenqu.service.extractor.TextExtractorFactory;
+import com.xia.wenqu.utils.UploadFileCleaner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +47,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final DocumentMapper documentMapper;
+    private final DocChunkMapper docChunkMapper;
+    private final UploadFileCleaner uploadFileCleaner;
     private final TextExtractorFactory extractorFactory;
     private final DocumentProcessService documentProcessService;
 
@@ -53,6 +57,12 @@ public class DocumentServiceImpl implements DocumentService {
      */
     @Value("${wenqu.upload-dir:./uploads}")
     private String uploadDir;
+
+    /**
+     * 异步处理中的状态：这些状态下不允许删除文档，避免与解析流水线竞态
+     */
+    private static final Set<DocumentStatus> PROCESSING_STATUS =
+            Set.of(DocumentStatus.PARSING, DocumentStatus.CHUNKING, DocumentStatus.EMBEDDING);
 
     /**
      * 文件上传：文件落盘，MySQL 只存文件路径
@@ -163,5 +173,64 @@ public class DocumentServiceImpl implements DocumentService {
         // 校验所属知识库存在且属于当前用户
         knowledgeBaseService.validateKnowledgeBase(doc.getKbId(), userId);
         return doc;
+    }
+
+    /**
+     * 删除文档（软删除）：磁盘文件与分块保留，进入回收站可恢复
+     */
+    @Override
+    @Transactional
+    public void deleteDocument(Long id, Long userId) {
+        Document doc = documentMapper.selectEntityById(id);
+        if (doc == null || !doc.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.DOCUMENT_NOT_FOUND);
+        }
+        // 处理中的文档不允许删除，避免异步流水线写库与删除竞态
+        if (PROCESSING_STATUS.contains(doc.getStatus())) {
+            throw new BusinessException(ResultCode.ILLEGAL_STATE, "文档正在处理中，请稍后再删除");
+        }
+        documentMapper.softDelete(id);
+    }
+
+    /**
+     * 恢复文档：分块保留时恢复后向量立即可用，无需重新处理
+     */
+    @Override
+    @Transactional
+    public void restoreDocument(Long id, Long userId) {
+        Document doc = documentMapper.selectDeletedEntityById(id);
+        if (doc == null || !doc.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.DOCUMENT_NOT_FOUND);
+        }
+        // 所属知识库仍处于软删除状态时不允许单独恢复文档
+        try {
+            knowledgeBaseService.validateKnowledgeBase(doc.getKbId(), userId);
+        } catch (BusinessException e) {
+            throw new BusinessException(ResultCode.ILLEGAL_STATE, "所属知识库已删除，请先恢复知识库");
+        }
+        documentMapper.restoreById(id);
+    }
+
+    /**
+     * 永久删除文档：物理删除分块、文档行，事务提交后清理磁盘文件
+     */
+    @Override
+    @Transactional
+    public void purgeDocument(Long id, Long userId) {
+        Document doc = documentMapper.selectDeletedEntityById(id);
+        if (doc == null || !doc.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.DOCUMENT_NOT_FOUND);
+        }
+
+        docChunkMapper.deleteByDocumentId(id);
+        documentMapper.deletePhysically(id);
+
+        // 事务提交后再删磁盘文件，DB 回滚时不丢文件
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                uploadFileCleaner.deleteQuietly(doc.getFilePath());
+            }
+        });
     }
 }
