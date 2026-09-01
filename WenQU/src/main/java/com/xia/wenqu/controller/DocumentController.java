@@ -3,7 +3,9 @@ package com.xia.wenqu.controller;
 import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.common.Result;
 import com.xia.wenqu.model.dto.PasswordConfirmDTO;
+import com.xia.wenqu.model.dto.RecycleBatchDTO;
 import com.xia.wenqu.model.vo.DocumentVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import com.xia.wenqu.security.LoginUser;
 import com.xia.wenqu.security.PasswordVerifier;
 import com.xia.wenqu.service.DocumentService;
@@ -101,5 +103,27 @@ public class DocumentController {
         passwordVerifier.verify(loginUser, dto.getPassword());
         documentService.purgeDocument(id, loginUser.getUserId());
         return Result.ok();
+    }
+
+    /**
+     * 批量恢复文档（整批一次密码认证）
+     */
+    @PostMapping("/documents/batch-restore")
+    public Result<RecycleBatchResultVO> batchRestoreDocuments(@Valid @RequestBody RecycleBatchDTO dto,
+                                                              @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("批量恢复文档：{} 项", dto.getIds().size());
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        return Result.ok(documentService.batchRestore(dto.getIds(), loginUser.getUserId()));
+    }
+
+    /**
+     * 批量永久删除文档（整批一次密码认证）
+     */
+    @PostMapping("/documents/batch-purge")
+    public Result<RecycleBatchResultVO> batchPurgeDocuments(@Valid @RequestBody RecycleBatchDTO dto,
+                                                            @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("批量永久删除文档：{} 项", dto.getIds().size());
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        return Result.ok(documentService.batchPurge(dto.getIds(), loginUser.getUserId()));
     }
 }

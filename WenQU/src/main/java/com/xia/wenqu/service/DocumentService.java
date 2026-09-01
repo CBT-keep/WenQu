@@ -2,9 +2,11 @@ package com.xia.wenqu.service;
 
 import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.model.vo.DocumentVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 文档功能接口类
@@ -43,4 +45,14 @@ public interface DocumentService {
      * 永久删除文档：物理删除分块、文档行与磁盘文件
      */
     void purgeDocument(Long id, Long userId);
+
+    /**
+     * 批量恢复文档：整批一个事务，无效/不可恢复的条目跳过并计数
+     */
+    RecycleBatchResultVO batchRestore(List<Long> ids, Long userId);
+
+    /**
+     * 批量永久删除文档：整批一个事务，磁盘文件在事务提交后统一清理
+     */
+    RecycleBatchResultVO batchPurge(List<Long> ids, Long userId);
 }

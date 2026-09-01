@@ -4,7 +4,10 @@ import com.xia.wenqu.common.PageResult;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.dto.KbUpdateDTO;
 import com.xia.wenqu.model.vo.KBVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import jakarta.validation.Valid;
+
+import java.util.List;
 
 public interface KnowledgeBaseService {
 
@@ -47,4 +50,14 @@ public interface KnowledgeBaseService {
      * 永久删除知识库：级联物理删除其下文档的分块、文档行、磁盘文件与知识库行
      */
     void purgeKnowledgeBase(Long id, Long userId);
+
+    /**
+     * 批量恢复知识库：整批一个事务，无效条目跳过并计数
+     */
+    RecycleBatchResultVO batchRestore(List<Long> ids, Long userId);
+
+    /**
+     * 批量永久删除知识库：整批一个事务，磁盘文件在事务提交后统一清理
+     */
+    RecycleBatchResultVO batchPurge(List<Long> ids, Long userId);
 }

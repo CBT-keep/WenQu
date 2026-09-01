@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WenQu · 终端知识库</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="stylesheet" href="css/style.css?v=20260902">
+<link rel="stylesheet" href="css/style.css?v=20260903">
 </head>
 <body>
 
@@ -190,6 +190,13 @@
   <div class="modal" style="width:640px">
     <div class="modal-head"><h3>回收站</h3><button class="btn-sm btn-ghost" id="modal-recycle-close">✕</button></div>
     <div class="modal-body">
+      <div class="recycle-toolbar">
+        <label class="recycle-select-all-label">
+          <input type="checkbox" id="recycle-select-all"> 全选
+        </label>
+        <button class="btn-sm" id="recycle-batch-restore">恢复选中</button>
+        <button class="btn-sm btn-err" id="recycle-batch-purge">永久删除选中</button>
+      </div>
       <div class="sidebar-title" style="padding-left:0">文档</div>
       <div id="recycle-doc-list"></div>
       <div class="sidebar-title" style="padding-left:0;margin-top:12px">知识库</div>
@@ -219,6 +226,6 @@
 <div class="toast-wrap" id="toast-wrap"></div>
 <input type="file" id="term-file-input" accept=".txt,.md,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.html,.csv,.epub" style="display:none">
 
-<script src="js/app.js?v=20260902"></script>
+<script src="js/app.js?v=20260903"></script>
 </body>
 </html>

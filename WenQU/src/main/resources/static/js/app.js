@@ -270,7 +270,7 @@ const state = {
   chatMsgs: [],
   editingKbId: null,
   docPollTimers: {},
-  recycleAction: null,   // 回收站待认证操作 {type:'doc'|'kb', id, mode:'restore'|'purge', name}
+  recycleBatch: null,    // 回收站待认证操作 {mode:'restore'|'purge', items:[{type,id}]}
   recycleCache: { docs: [], kbs: [] },
 };
 
@@ -716,6 +716,26 @@ function maskSensitiveCmd(raw) {
   return masked;
 }
 
+// 解析回收站批量操作的 ID 规格：如 12,15,18 / 12-20,25，返回去重后的 ID 数组；非法返回 null
+function parseIdSpec(spec) {
+  const out = new Set();
+  for (const part of spec.split(',')) {
+    const p = part.trim();
+    if (!p) continue;
+    const m = /^(\d+)-(\d+)$/.exec(p);
+    if (m) {
+      let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) [a, b] = [b, a];
+      for (let i = a; i <= b; i++) out.add(i);
+    } else if (/^\d+$/.test(p)) {
+      out.add(parseInt(p, 10));
+    } else {
+      return null;
+    }
+  }
+  return out.size ? [...out] : null;
+}
+
 function parseFlags(args) {
   const flags = {};
   const positional = [];
@@ -726,7 +746,6 @@ function parseFlags(args) {
   }
   return { flags, positional };
 }
-
 function num(v, dflt) {
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : dflt;
@@ -996,10 +1015,8 @@ const TERM_CMDS = {
       ],
       trash: [
         ['trash list [doc|kb]', '查看回收站（默认全部）'],
-        ['trash restore doc <id>', '恢复文档（需密码）'],
-        ['trash restore kb <id>', '恢复知识库及其下文档（需密码）'],
-        ['trash purge doc <id>', '永久删除文档，不可恢复（需密码）'],
-        ['trash purge kb <id>', '永久删除知识库，不可恢复（需密码）'],
+        ['trash restore doc|kb <ID|区间|all>', '批量恢复，如 12,15,18 或 12-20 或 all（需密码）'],
+        ['trash purge doc|kb <ID|区间|all>', '批量永久删除，如 12-20,25 或 all（需密码）'],
       ],
       conv: [
         ['conv list', '会话列表'],
@@ -1262,34 +1279,49 @@ const TERM_CMDS = {
             termPrint(`<span class="term-hl">#${d.id}</span> ${esc(d.name)} <span class="term-muted">— ${esc(d.kbName || 'kb#' + d.kbId)} · ${fmtSize(d.size)} · ${d.chunkCount || 0} 分块 · 删除于 ${fmtTime(d.deletedAt)}</span>`);
           }
         }
-        termPrint(`<span class="term-dim">trash restore doc|kb &lt;id&gt; 恢复 · trash purge doc|kb &lt;id&gt; 永久删除（均需密码）</span>`);
+        termPrint(`<span class="term-dim">trash restore doc|kb &lt;ID|区间|all&gt; · trash purge doc|kb &lt;ID|区间|all&gt;（均需密码，如 12,15,18 或 12-20,25 或 all）</span>`);
         break;
       }
       case 'restore':
       case 'purge': {
         const kind = (args[0] || '').toLowerCase();
-        const id = num(args[1]);
-        if ((kind !== 'doc' && kind !== 'kb') || !id) {
-          termPrint(`<span class="term-warn">用法：trash ${c1} doc|kb &lt;id&gt;</span>`);
+        const spec = args[1] ? args[1].toLowerCase() : null;
+        if ((kind !== 'doc' && kind !== 'kb') || !spec) {
+          termPrint(`<span class="term-warn">用法：trash ${c1} doc|kb &lt;ID|区间|all&gt;</span><span class="term-dim"> — 如 12,15,18 或 12-20,25 或 all</span>`);
           return;
         }
         const list = kind === 'doc' ? await loadDocs() : await loadKbs();
-        const item = list.find(x => x.id === id);
-        if (!item) {
-          termPrint(`<span class="term-err">回收站中不存在该${KIND_LABEL[kind]}：#${id}</span> — 用 <span class="term-hl">trash list</span> 查看`);
-          return;
+        const items = [];   // {id, name} 回收站中实际存在的目标
+        let missing = 0;
+        if (spec === 'all') {
+          items.push(...list.map(x => ({ id: x.id, name: x.name })));
+        } else {
+          const ids = parseIdSpec(spec);
+          if (!ids) { termPrint('<span class="term-warn">ID 规格不合法：仅支持数字、逗号分隔与区间（如 12,15,18 或 12-20,25）</span>'); return; }
+          for (const id of ids) {
+            const it = list.find(x => x.id === id);
+            if (it) items.push({ id, name: it.name });
+            else missing++;
+          }
+          if (!items.length) {
+            termPrint(`<span class="term-err">回收站中不存在所选${KIND_LABEL[kind]}（${missing} 个 ID 均未找到）</span> — 用 <span class="term-hl">trash list</span> 查看`);
+            return;
+          }
         }
         const verb = c1 === 'purge' ? '永久删除' : '恢复';
+        const summary = items.slice(0, 3).map(x => `「${x.name}」`).join('、')
+          + (items.length > 3 ? ` 等 ${items.length} 项` : `（共 ${items.length} 项）`);
         termConfirm(
-          `${verb}${KIND_LABEL[kind]}「${item.name}」${c1 === 'purge' ? '？此操作不可恢复！' : ''}`,
+          `${verb}${KIND_LABEL[kind]} ${summary}${c1 === 'purge' ? '，此操作不可恢复！' : ''}`
+          + (missing ? ` <span class="term-dim">（另有 ${missing} 个 ID 不在回收站，将跳过）</span>` : ''),
           ok => {
             if (!ok) { termPrint('<span class="term-dim">已取消</span>'); return; }
-            termAskPassword('请输入密码完成身份认证', async pwd => {
+            termAskPassword('请输入密码完成身份认证（整批只需一次）', async pwd => {
               try {
                 termPrint('<span class="term-dim">认证中...</span>');
-                const path = kind === 'doc' ? `/documents/${id}/${c1}` : `/kbs/${id}/${c1}`;
-                await api('POST', path, { password: pwd });
-                termPrint(`<span class="term-ok">✓ 已${verb} #${id} ${esc(item.name)}</span>`);
+                const path = kind === 'doc' ? `/documents/batch-${c1}` : `/kbs/batch-${c1}`;
+                const r = await api('POST', path, { ids: items.map(x => x.id), password: pwd });
+                termPrint(`<span class="term-ok">✓ 已${verb} ${r.success} 项</span>${r.skipped ? ` <span class="term-warn">（跳过 ${r.skipped} 项）</span>` : ''}`);
               } catch (err) {
                 termPrintErr(err);
               }
@@ -1796,7 +1828,10 @@ function recycleItemHtml(item, type) {
     ? `${esc(item.kbName || 'kb#' + item.kbId)} · ${fmtSize(item.size)} · ${item.chunkCount || 0} 分块`
     : `${item.docCount || 0} 个文档`;
   return `
-    <div class="doc-name">${esc(item.name)}</div>
+    <div class="doc-name"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" class="recycle-check" data-type="${type}" data-id="${item.id}">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>
+    </label></div>
     <span class="badge badge-dim">${esc(item.type ? ('.' + item.type) : (type === 'doc' ? '文档' : '知识库'))}</span>
     <div class="doc-size">${meta}<br><span style="font-size:11px;opacity:.75">删除于 ${fmtTime(item.deletedAt)}</span></div>
     <div class="doc-actions">
@@ -1817,18 +1852,38 @@ function renderRecycleLists() {
     : emptyHint;
 }
 
-/* 回收站最终操作入口：弹密码认证模态框（供内联 onclick 调用） */
+/* 回收站操作入口：单个（内联按钮）与批量（工具栏）统一走批量接口，一次密码认证 */
 function recycleAct(type, id, mode) {
-  const cache = type === 'doc' ? state.recycleCache.docs : state.recycleCache.kbs;
-  const item = cache.find(x => x.id === id);
-  const name = item?.name || ('#' + id);
-  state.recycleAction = { type, id, mode, name };
-  document.getElementById('modal-password-title').textContent =
-    mode === 'purge' ? `永久删除${type === 'doc' ? '文档' : '知识库'}` : `恢复${type === 'doc' ? '文档' : '知识库'}`;
+  startRecycleAuth(mode, [{ type, id }]);
+}
+
+function recycleBatchAct(mode) {
+  const items = [];
+  document.querySelectorAll('.recycle-check').forEach(cb => {
+    if (cb.checked) items.push({ type: cb.dataset.type, id: parseInt(cb.dataset.id, 10) });
+  });
+  if (!items.length) { toast('请先勾选要操作的条目', 'warn'); return; }
+  if (mode === 'purge' && !confirm(`将永久删除选中的 ${items.length} 项，此操作不可恢复！确定继续？`)) return;
+  startRecycleAuth(mode, items);
+}
+
+function startRecycleAuth(mode, items) {
+  state.recycleBatch = { mode, items };
+  const label = mode === 'purge' ? '永久删除' : '恢复';
+  const typeLabel = items.every(i => i.type === 'doc') ? '文档'
+    : items.every(i => i.type === 'kb') ? '知识库' : '条目';
+  const names = items.map(it => {
+    const cache = it.type === 'doc' ? state.recycleCache.docs : state.recycleCache.kbs;
+    const f = cache.find(x => x.id === it.id);
+    return f?.name || ('#' + it.id);
+  });
+  const summary = names.slice(0, 3).map(n => `「${n}」`).join('、')
+    + (names.length > 3 ? ` 等 ${names.length} 项` : `（共 ${names.length} 项）`);
+  document.getElementById('modal-password-title').textContent = `${label}${typeLabel}认证`;
   document.getElementById('modal-password-desc').textContent =
     (mode === 'purge'
-      ? `即将永久删除「${name}」，此操作不可恢复！`
-      : `即将恢复「${name}」。`)
+      ? `即将永久删除：${summary}，此操作不可恢复！`
+      : `即将恢复：${summary}。`)
     + '请输入登录密码完成身份认证。';
   document.getElementById('mp-password').value = '';
   document.getElementById('mp-err').textContent = '';
@@ -1836,33 +1891,53 @@ function recycleAct(type, id, mode) {
 }
 
 async function confirmPasswordAction() {
-  const a = state.recycleAction;
-  if (!a) return;
+  const b = state.recycleBatch;
+  if (!b) return;
   const pwd = document.getElementById('mp-password').value;
   const errEl = document.getElementById('mp-err');
   if (!pwd) { errEl.textContent = '请输入密码'; return; }
   errEl.textContent = '';
-  const path = a.type === 'doc' ? `/documents/${a.id}/${a.mode}` : `/kbs/${a.id}/${a.mode}`;
+
+  // 按类型分组，分别调用文档/知识库批量接口
+  const groups = { doc: [], kb: [] };
+  b.items.forEach(it => groups[it.type].push(it.id));
+  let success = 0, skipped = 0;
   try {
-    await api('POST', path, { password: pwd }, false, true);
-    closeModal('modal-password');
-    state.recycleAction = null;
-    toast(a.mode === 'purge' ? '已永久删除' : '已恢复', 'ok');
-    await refreshRecycleModal();
-    loadKbs().then(refreshKbStats);
-    if (state.currentKb) loadDocs(state.currentKb.id);
+    if (groups.doc.length) {
+      const r = await api('POST', `/documents/batch-${b.mode}`, { ids: groups.doc, password: pwd }, false, true);
+      success += r.success; skipped += r.skipped;
+    }
+    if (groups.kb.length) {
+      const r = await api('POST', `/kbs/batch-${b.mode}`, { ids: groups.kb, password: pwd }, false, true);
+      success += r.success; skipped += r.skipped;
+    }
   } catch (err) {
     if (err.code === 40100 || err.code === 40101) return;
     errEl.textContent = err.message || '认证失败';
+    return;
   }
+
+  closeModal('modal-password');
+  state.recycleBatch = null;
+  const verb = b.mode === 'purge' ? '已永久删除' : '已恢复';
+  toast(`${verb} ${success} 项${skipped ? `，跳过 ${skipped} 项` : ''}`, 'ok');
+  await refreshRecycleModal();
+  loadKbs().then(refreshKbStats);
+  if (state.currentKb) loadDocs(state.currentKb.id);
 }
+
+document.getElementById('recycle-batch-restore').onclick = () => recycleBatchAct('restore');
+document.getElementById('recycle-batch-purge').onclick = () => recycleBatchAct('purge');
+document.getElementById('recycle-select-all').onchange = e => {
+  document.querySelectorAll('.recycle-check').forEach(cb => { cb.checked = e.target.checked; });
+};
 
 document.getElementById('modal-recycle-close').onclick =
   document.getElementById('modal-recycle-ok').onclick = () => closeModal('modal-recycle');
 
 document.getElementById('modal-password-close').onclick =
   document.getElementById('modal-password-cancel').onclick = () => {
-    state.recycleAction = null;
+    state.recycleBatch = null;
     closeModal('modal-password');
   };
 

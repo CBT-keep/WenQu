@@ -12,6 +12,7 @@ import com.xia.wenqu.model.dto.KbUpdateDTO;
 import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.entity.KnowledgeBase;
 import com.xia.wenqu.model.vo.KBVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import com.xia.wenqu.service.KnowledgeBaseService;
 import com.xia.wenqu.utils.UploadFileCleaner;
 import jakarta.validation.Valid;
@@ -199,5 +200,41 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 docs.forEach(doc -> uploadFileCleaner.deleteQuietly(doc.getFilePath()));
             }
         });
+    }
+
+    /**
+     * 批量恢复知识库：整批共用一个事务，逐条复用单条逻辑并容错跳过
+     */
+    @Override
+    @Transactional
+    public RecycleBatchResultVO batchRestore(List<Long> ids, Long userId) {
+        int success = 0, skipped = 0;
+        for (Long id : ids) {
+            try {
+                restoreKnowledgeBase(id, userId);
+                success++;
+            } catch (BusinessException e) {
+                skipped++;
+            }
+        }
+        return RecycleBatchResultVO.builder().requested(ids.size()).success(success).skipped(skipped).build();
+    }
+
+    /**
+     * 批量永久删除知识库：整批共用一个事务，磁盘文件在事务提交后统一清理
+     */
+    @Override
+    @Transactional
+    public RecycleBatchResultVO batchPurge(List<Long> ids, Long userId) {
+        int success = 0, skipped = 0;
+        for (Long id : ids) {
+            try {
+                purgeKnowledgeBase(id, userId);
+                success++;
+            } catch (BusinessException e) {
+                skipped++;
+            }
+        }
+        return RecycleBatchResultVO.builder().requested(ids.size()).success(success).skipped(skipped).build();
     }
 }

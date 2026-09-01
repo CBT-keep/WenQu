@@ -5,7 +5,9 @@ import com.xia.wenqu.common.Result;
 import com.xia.wenqu.model.dto.KbCreateDTO;
 import com.xia.wenqu.model.dto.KbUpdateDTO;
 import com.xia.wenqu.model.dto.PasswordConfirmDTO;
+import com.xia.wenqu.model.dto.RecycleBatchDTO;
 import com.xia.wenqu.model.vo.KBVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import com.xia.wenqu.security.LoginUser;
 import com.xia.wenqu.security.PasswordVerifier;
 import com.xia.wenqu.service.KnowledgeBaseService;
@@ -109,5 +111,27 @@ public class KnowledgeBaseController {
         passwordVerifier.verify(loginUser, dto.getPassword());
         knowledgeBaseService.purgeKnowledgeBase(id, loginUser.getUserId());
         return Result.ok();
+    }
+
+    /**
+     * 批量恢复知识库（整批一次密码认证）
+     */
+    @PostMapping("/batch-restore")
+    public Result<RecycleBatchResultVO> batchRestoreKnowledgeBases(@Valid @RequestBody RecycleBatchDTO dto,
+                                                                   @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("批量恢复知识库：{} 项", dto.getIds().size());
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        return Result.ok(knowledgeBaseService.batchRestore(dto.getIds(), loginUser.getUserId()));
+    }
+
+    /**
+     * 批量永久删除知识库（整批一次密码认证）
+     */
+    @PostMapping("/batch-purge")
+    public Result<RecycleBatchResultVO> batchPurgeKnowledgeBases(@Valid @RequestBody RecycleBatchDTO dto,
+                                                                 @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("批量永久删除知识库：{} 项", dto.getIds().size());
+        passwordVerifier.verify(loginUser, dto.getPassword());
+        return Result.ok(knowledgeBaseService.batchPurge(dto.getIds(), loginUser.getUserId()));
     }
 }

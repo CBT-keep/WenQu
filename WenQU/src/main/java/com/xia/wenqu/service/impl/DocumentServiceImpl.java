@@ -10,6 +10,7 @@ import com.xia.wenqu.mapper.DocumentMapper;
 import com.xia.wenqu.model.entity.Document;
 import com.xia.wenqu.model.enums.DocumentStatus;
 import com.xia.wenqu.model.vo.DocumentVO;
+import com.xia.wenqu.model.vo.RecycleBatchResultVO;
 import com.xia.wenqu.service.DocumentProcessService;
 import com.xia.wenqu.service.DocumentService;
 import com.xia.wenqu.service.KnowledgeBaseService;
@@ -232,5 +233,39 @@ public class DocumentServiceImpl implements DocumentService {
                 uploadFileCleaner.deleteQuietly(doc.getFilePath());
             }
         });
+    }
+
+    /**
+     * 批量恢复/永久删除：整批共用一个事务，逐条复用单条逻辑并容错跳过
+     * （批内为 this 直调，BusinessException 不会触发回滚标记）
+     */
+    @Override
+    @Transactional
+    public RecycleBatchResultVO batchRestore(List<Long> ids, Long userId) {
+        int success = 0, skipped = 0;
+        for (Long id : ids) {
+            try {
+                restoreDocument(id, userId);
+                success++;
+            } catch (BusinessException e) {
+                skipped++;
+            }
+        }
+        return RecycleBatchResultVO.builder().requested(ids.size()).success(success).skipped(skipped).build();
+    }
+
+    @Override
+    @Transactional
+    public RecycleBatchResultVO batchPurge(List<Long> ids, Long userId) {
+        int success = 0, skipped = 0;
+        for (Long id : ids) {
+            try {
+                purgeDocument(id, userId);
+                success++;
+            } catch (BusinessException e) {
+                skipped++;
+            }
+        }
+        return RecycleBatchResultVO.builder().requested(ids.size()).success(success).skipped(skipped).build();
     }
 }
