@@ -174,7 +174,6 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .term-err{color:var(--err)}
 .term-warn{color:var(--warn)}
 .term-hl{color:var(--accent);font-weight:700}
-.term-blink{animation:blink 1.2s step-end infinite}
 
 /* ASCII 艺术字 banner */
 .term-ascii{
@@ -359,6 +358,11 @@ button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .empty-title{
   font-family:var(--font);font-size:48px;font-weight:700;color:var(--accent);
   margin-bottom:16px;opacity:0;animation:fadeIn .6s var(--ease-out) .1s forwards;
+}
+.empty-ascii{
+  font-family:var(--font);font-size:16px;line-height:1.15;white-space:pre;
+  color:var(--accent);text-shadow:0 0 10px var(--accent-glow),0 0 30px rgba(0,255,156,.08);
+  margin:0 0 18px;opacity:0;animation:asciiFadeIn .8s var(--ease-out) .1s forwards;
 }
 .empty-desc{
   font-size:13px;line-height:1.8;opacity:0;
@@ -546,9 +550,44 @@ kbd{
 .msg-actions .btn-sm:hover{border-color:var(--accent);background:var(--accent-dim)}
 @media(pointer:coarse){.msg-actions{opacity:1}}
 
+/* ===== 终端结构化输出（表格 / 徽章 / 详情卡片） ===== */
+.term-table{border-collapse:collapse;margin:6px 0 8px;font-size:12.5px;width:100%;white-space:nowrap}
+.term-table th,.term-table td{border:1px solid var(--border);padding:5px 10px;text-align:left}
+.term-table th{background:var(--card);color:var(--text-dim);font-weight:600;font-size:11px;letter-spacing:.04em}
+.term-table tbody tr:nth-child(odd) td{background:rgba(148,163,184,.04)}
+.term-badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10.5px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
+.term-badge-ok{color:var(--ok);background:rgba(0,255,156,.1)}
+.term-badge-warn{color:var(--warn);background:rgba(255,170,0,.1)}
+.term-badge-err{color:var(--err);background:rgba(255,71,87,.1)}
+.term-badge-dim{color:var(--text-dim);background:rgba(148,163,184,.12)}
+
+.term-detail{
+  margin:6px 0 10px;padding:10px 14px;
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:var(--r-sm);background:var(--card);
+}
+.term-detail-title{font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:6px}
+.term-detail-row{display:flex;gap:10px;font-size:12.5px;line-height:1.9}
+.term-detail-key{color:var(--text-dim);min-width:72px;flex-shrink:0}
+.term-detail-val{color:var(--text);word-break:break-all}
+
+/* ===== 终端对话（Claude Code 风格） ===== */
+.term-msg-user{font-size:13px;line-height:1.7;margin:4px 0}
+.term-msg-prompt{color:var(--accent);font-weight:700}
+.term-ai-block{
+  display:block;margin:6px 0 12px;padding:10px 14px;
+  border-left:3px solid var(--accent);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  background:rgba(148,163,184,.05);
+}
+.term-ai-status{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px;color:var(--text-dim)}
+.term-spinner{color:var(--accent);display:inline-block;width:12px}
+.term-ai-status-done .term-ai-status-text{color:var(--ok)}
+.term-ai-status-fail .term-ai-status-text{color:var(--err)}
+.term-ai-status-done,.term-ai-status-fail{color:var(--text-dim)}
+
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@keyframes blink{50%{opacity:0}}
+@keyframes cursorBlink{0%,50%{opacity:1}51%,100%{opacity:0}}
 @keyframes themeSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
@@ -874,9 +913,11 @@ html:not(.music-open) .music-panel{display:none}
 /* --- 手机端 ASCII art 缩小 --- */
 @media(max-width:768px){
   .term-ascii{font-size:10px;line-height:1.1}
+  .empty-ascii{font-size:11px}
 }
 @media(max-width:400px){
   .term-ascii{font-size:7px;line-height:1.05}
+  .empty-ascii{font-size:8px}
 }
 
 /* --- 不支持 backdrop-filter 的浏览器：回退实色 --- */

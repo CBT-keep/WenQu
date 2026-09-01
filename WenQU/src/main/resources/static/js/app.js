@@ -21,8 +21,9 @@ const ASCII_BANNER = [
 
 function runBootAnimation() {
   const asciiEl = document.getElementById('term-ascii');
-  if (!asciiEl) return;
-  asciiEl.textContent = ASCII_BANNER.join('\n');
+  if (asciiEl) asciiEl.textContent = ASCII_BANNER.join('\n');
+  const emptyAscii = document.getElementById('kb-empty-ascii');
+  if (emptyAscii) emptyAscii.textContent = ASCII_BANNER.join('\n');
 
   const bootLines = document.querySelectorAll('.term-boot');
   bootLines.forEach((line, i) => {
@@ -535,6 +536,22 @@ authInput.addEventListener('select', syncAuthMirror);
 document.addEventListener('selectionchange', syncAuthMirror);
 syncAuthMirror();
 
+function termPrintUser(textHtml) {
+  const line = document.createElement('div');
+  line.className = 'term-line term-msg-user';
+  line.innerHTML = '<span class="term-msg-prompt">❯</span> ' + textHtml;
+  authOutput.appendChild(line);
+  authOutput.scrollTop = authOutput.scrollHeight;
+}
+
+function termAIBlock(mdText) {
+  const line = document.createElement('div');
+  line.className = 'term-line';
+  line.innerHTML = '<div class="term-ai-block"><div class="term-ai-md"><span class="term-ai-text md">' + renderMarkdown(mdText || '') + '</span></div></div>';
+  authOutput.appendChild(line);
+  authOutput.scrollTop = authOutput.scrollHeight;
+}
+
 function termPrint(html) {
   const div = document.createElement('div');
   div.className = 'term-line';
@@ -554,6 +571,38 @@ function termPrintErr(err) {
 function termConfirm(msg, cb) {
   term.pendingConfirm = { msg, cb };
   termPrint(`<span class="term-warn">⚠ 确认：</span>${esc(msg)} <span class="term-dim">(y/n)</span>`);
+}
+
+/* ---- 终端结构化输出：表格 / 状态徽章 / 键值详情 ---- */
+const DOC_STATUS_LABEL = {
+  UPLOADED: ['dim', '已上传'],
+  PARSING: ['warn', '解析中'],
+  CHUNKING: ['warn', '分块中'],
+  EMBEDDING: ['warn', '向量化中'],
+  READY: ['ok', '就绪'],
+  FAILED: ['err', '失败'],
+};
+
+function termDocBadge(status) {
+  const [cls, label] = DOC_STATUS_LABEL[status] || ['dim', status || '未知'];
+  return `<span class="term-badge term-badge-${cls}">${esc(label)}</span>`;
+}
+
+// rows 为二维数组，单元格内容是调用方拼好的 HTML；opts.empty 为空列表提示文案
+function termTable(headers, rows, opts = {}) {
+  if (!rows || !rows.length) {
+    if (opts.empty) termPrint(`<span class="term-dim">${esc(opts.empty)}</span>`);
+    return;
+  }
+  const thead = '<thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead>';
+  const tbody = '<tbody>' + rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</tbody>';
+  termPrint('<table class="term-table">' + thead + tbody + '</table>');
+}
+
+function termDetail(titleHtml, pairs) {
+  const rows = pairs.map(([k, v]) =>
+    `<div class="term-detail-row"><span class="term-detail-key">${k}</span><span class="term-detail-val">${v}</span></div>`).join('');
+  termPrint(`<div class="term-detail">${titleHtml ? `<div class="term-detail-title">${titleHtml}</div>` : ''}<div class="term-detail-rows">${rows}</div></div>`);
 }
 
 /* ---- 命令历史 ---- */
@@ -1068,22 +1117,26 @@ const TERM_CMDS = {
       if (me) u = me;
     } catch {}
     if (!u) { termPrint('<span class="term-warn">未登录</span>'); return; }
-    termPrint(`用户：<span class="term-ok">${esc(u.nickname || u.username)}</span>（${esc(u.username)}）· 角色：${esc(u.role || 'USER')}`);
+    termDetail(`<span class="term-ok">${esc(u.nickname || u.username || '-')}</span>`, [
+      ['用户名', esc(u.username || '-')],
+      ['角色', `<span class="term-badge term-badge-dim">${esc(u.role || 'USER')}</span>`],
+    ]);
   },
 
   async status() {
     const u = state.user;
-    termPrint(`用户：<span class="term-ok">${esc(u?.nickname || u?.username || '-')}</span>`);
-    if (term.curKb) termPrint(`当前知识库：<span class="term-hl">#${term.curKb.id} ${esc(term.curKb.name)}</span>`);
-    if (term.curConv) termPrint(`当前会话：<span class="term-hl">#${term.curConv.id}</span>（${esc(term.curConv.title || '')}）`);
+    const pairs = [['用户', `<span class="term-ok">${esc(u?.nickname || u?.username || '-')}</span>`]];
+    if (term.curKb) pairs.push(['当前知识库', `<span class="term-hl">#${term.curKb.id} ${esc(term.curKb.name)}</span>`]);
+    if (term.curConv) pairs.push(['当前会话', `<span class="term-hl">#${term.curConv.id}</span> <span class="term-dim">${esc(term.curConv.title || '')}</span>`]);
     try {
       const d = await api('GET', '/kbs?page=1&pageSize=1');
-      termPrint(`知识库总数：${d?.total ?? '-'}`);
+      pairs.push(['知识库总数', String(d?.total ?? '-')]);
     } catch {}
     try {
       const d = await api('GET', '/conversations?page=1&pageSize=1');
-      termPrint(`会话总数：${d?.total ?? '-'}`);
+      pairs.push(['会话总数', String(d?.total ?? '-')]);
     } catch {}
+    termDetail('<span class="term-hl">当前状态</span>', pairs);
   },
 
   /* ---- 知识库 ---- */
@@ -1097,10 +1150,18 @@ const TERM_CMDS = {
           termPrint('<span class="term-dim">没有知识库 — 用 <span class="term-hl">kb create &lt;名称&gt;</span> 创建</span>');
           return;
         }
-        for (const k of list) {
-          const cur = term.curKb?.id === k.id ? ' <span class="term-ok">[当前]</span>' : '';
-          termPrint(`<span class="term-hl">#${k.id}</span> ${esc(k.name)}<span class="term-muted"> — ${k.docCount || 0} 文档 · ${k.chunkCount || 0} 分块 · chunk:${k.chunkSize || 400}/ov:${k.overlap || 80}</span>${cur}`);
-        }
+        termTable(
+          ['ID', '名称', '描述', '文档', '分块', '分块/重叠', '当前'],
+          list.map(k => [
+            `<span class="term-hl">#${k.id}</span>`,
+            esc(clip(k.name, 20)),
+            `<span class="term-dim">${esc(clip(k.description || '—', 22))}</span>`,
+            String(k.docCount || 0),
+            String(k.chunkCount || 0),
+            `<span class="term-dim">${k.chunkSize || 400} / ${k.overlap || 80}</span>`,
+            term.curKb?.id === k.id ? '<span class="term-ok">●</span>' : '<span class="term-dim">·</span>',
+          ]),
+        );
         termPrint(`<span class="term-dim">共 ${list.length} 条 · kb show &lt;id&gt; 详情 · kb use &lt;id&gt; 设为当前</span>`);
         break;
       }
@@ -1108,10 +1169,13 @@ const TERM_CMDS = {
         const id = num(args[0]);
         if (!id) { termPrint('<span class="term-warn">用法：kb show &lt;id&gt;</span>'); return; }
         const k = await api('GET', `/kbs/${id}`);
-        termPrint(`<span class="term-hl">#${k.id}</span> ${esc(k.name)}`);
-        termPrint(`  描述：${esc(k.description || '-')}`);
-        termPrint(`  分块大小：${k.chunkSize} · 重叠：${k.overlap}`);
-        termPrint(`  文档：${k.docCount} · 分块：${k.chunkCount} · 创建：${new Date(k.createdAt).toLocaleString()}`);
+        termDetail(`<span class="term-hl">#${k.id}</span> ${esc(k.name)}`, [
+          ['描述', esc(k.description || '—')],
+          ['分块参数', `<span class="term-dim">${k.chunkSize} 字符 / 重叠 ${k.overlap}</span>`],
+          ['文档', String(k.docCount ?? 0)],
+          ['分块', String(k.chunkCount ?? 0)],
+          ['创建', `<span class="term-dim">${fmtTime(k.createdAt)}</span>`],
+        ]);
         break;
       }
       case 'create': {
@@ -1196,10 +1260,17 @@ const TERM_CMDS = {
           termPrint('<span class="term-dim">该知识库暂无文档 — <span class="term-hl">doc upload</span> 上传</span>');
           return;
         }
-        const ST = { READY: 'ok', FAILED: 'err', UPLOADED: 'dim', PARSING: 'warn', CHUNKING: 'warn', EMBEDDING: 'warn' };
-        for (const x of list) {
-          termPrint(`<span class="term-hl">#${x.id}</span> ${esc(x.name)} <span class="term-${ST[x.status] || 'dim'}">${x.status}</span> <span class="term-muted">${fmtSize(x.size)} · ${x.chunkCount} 分块</span>`);
-        }
+        termTable(
+          ['ID', '名称', '类型', '状态', '大小', '分块'],
+          list.map(x => [
+            `<span class="term-hl">#${x.id}</span>`,
+            esc(clip(x.name, 26)),
+            `<span class="term-dim">${x.type ? esc(x.type.toUpperCase()) : '—'}</span>`,
+            termDocBadge(x.status),
+            `<span class="term-dim">${fmtSize(x.size)}</span>`,
+            String(x.chunkCount || 0),
+          ]),
+        );
         termPrint(`<span class="term-dim">共 ${list.length} 条 · doc show &lt;id&gt; 详情 · doc delete &lt;id&gt; 删除</span>`);
         break;
       }
@@ -1207,10 +1278,13 @@ const TERM_CMDS = {
         const id = num(args[0]);
         if (!id) { termPrint('<span class="term-warn">用法：doc show &lt;id&gt;</span>'); return; }
         const x = await api('GET', `/documents/${id}`);
-        termPrint(`<span class="term-hl">#${x.id}</span> ${esc(x.name)} · ${esc(x.type || '')}`);
-        termPrint(`  状态：${x.status}${x.errorMsg ? ` <span class="term-err">（${esc(x.errorMsg)}）</span>` : ''}`);
-        termPrint(`  大小：${fmtSize(x.size)} · 分块：${x.chunkCount}`);
-        termPrint(`  创建：${new Date(x.createdAt).toLocaleString()}`);
+        termDetail(`<span class="term-hl">#${x.id}</span> ${esc(x.name)}`, [
+          ['类型', `<span class="term-dim">${x.type ? esc(x.type.toUpperCase()) : '—'}</span>`],
+          ['状态', termDocBadge(x.status) + (x.errorMsg ? ` <span class="term-err">${esc(x.errorMsg)}</span>` : '')],
+          ['大小', `<span class="term-dim">${fmtSize(x.size)}</span>`],
+          ['分块', String(x.chunkCount || 0)],
+          ['创建', `<span class="term-dim">${fmtTime(x.createdAt)}</span>`],
+        ]);
         break;
       }
       case 'upload': {
@@ -1267,16 +1341,38 @@ const TERM_CMDS = {
         }
         if (kind !== 'doc') {
           const kbs = await loadKbs();
-          if (!kbs.length) termPrint('<span class="term-dim">回收站中没有知识库</span>');
-          for (const k of kbs) {
-            termPrint(`<span class="term-hl">#${k.id}</span> ${esc(k.name)} <span class="term-muted">— ${k.docCount || 0} 文档 · 删除于 ${fmtTime(k.deletedAt)}</span>`);
+          if (kbs.length) {
+            termPrint('<span class="term-hl">回收站 · 知识库</span>');
+            termTable(
+              ['ID', '名称', '文档', '删除时间'],
+              kbs.map(k => [
+                `<span class="term-hl">#${k.id}</span>`,
+                esc(clip(k.name, 26)),
+                String(k.docCount || 0),
+                `<span class="term-dim">${fmtTime(k.deletedAt)}</span>`,
+              ]),
+            );
+          } else {
+            termPrint('<span class="term-dim">回收站中没有知识库</span>');
           }
         }
         if (kind !== 'kb') {
           const docs = await loadDocs();
-          if (!docs.length) termPrint('<span class="term-dim">回收站中没有文档</span>');
-          for (const d of docs) {
-            termPrint(`<span class="term-hl">#${d.id}</span> ${esc(d.name)} <span class="term-muted">— ${esc(d.kbName || 'kb#' + d.kbId)} · ${fmtSize(d.size)} · ${d.chunkCount || 0} 分块 · 删除于 ${fmtTime(d.deletedAt)}</span>`);
+          if (docs.length) {
+            termPrint('<span class="term-hl">回收站 · 文档</span>');
+            termTable(
+              ['ID', '名称', '所属知识库', '大小', '分块', '删除时间'],
+              docs.map(d => [
+                `<span class="term-hl">#${d.id}</span>`,
+                esc(clip(d.name, 22)),
+                `<span class="term-dim">${esc(clip(d.kbName || 'kb#' + d.kbId, 14))}</span>`,
+                `<span class="term-dim">${fmtSize(d.size)}</span>`,
+                String(d.chunkCount || 0),
+                `<span class="term-dim">${fmtTime(d.deletedAt)}</span>`,
+              ]),
+            );
+          } else {
+            termPrint('<span class="term-dim">回收站中没有文档</span>');
           }
         }
         termPrint(`<span class="term-dim">trash restore doc|kb &lt;ID|区间|all&gt; · trash purge doc|kb &lt;ID|区间|all&gt;（均需密码，如 12,15,18 或 12-20,25 或 all）</span>`);
@@ -1345,10 +1441,16 @@ const TERM_CMDS = {
           termPrint('<span class="term-dim">没有会话 — <span class="term-hl">conv new</span> 创建</span>');
           return;
         }
-        for (const c of list) {
-          const cur = term.curConv?.id === c.id ? ' <span class="term-ok">[当前]</span>' : '';
-          termPrint(`<span class="term-hl">#${c.id}</span> ${esc(c.title || '新对话')} <span class="term-muted">kb#${c.kbId} · ${new Date(c.createdAt).toLocaleString()}</span>${cur}`);
-        }
+        termTable(
+          ['ID', '标题', '知识库', '创建时间', '当前'],
+          list.map(c => [
+            `<span class="term-hl">#${c.id}</span>`,
+            esc(clip(c.title || '新对话', 24)),
+            `<span class="term-dim">#${c.kbId}</span>`,
+            `<span class="term-dim">${fmtTime(c.createdAt)}</span>`,
+            term.curConv?.id === c.id ? '<span class="term-ok">●</span>' : '<span class="term-dim">·</span>',
+          ]),
+        );
         termPrint(`<span class="term-dim">共 ${list.length} 条 · conv open &lt;id&gt; 打开 · conv delete &lt;id&gt; 删除</span>`);
         break;
       }
@@ -1370,13 +1472,16 @@ const TERM_CMDS = {
           try { term.curKb = await api('GET', `/kbs/${c.kbId}`); } catch {}
         }
         updateTermTitle();
-        termPrint(`<span class="term-hl">#${c.id}</span> ${esc(c.title || '新对话')} <span class="term-muted">kb#${c.kbId} · ${new Date(c.createdAt).toLocaleString()}</span>`);
+        termDetail(`<span class="term-hl">#${c.id}</span> ${esc(c.title || '新对话')}`, [
+          ['知识库', `<span class="term-hl">#${c.kbId}</span>`],
+          ['创建', `<span class="term-dim">${fmtTime(c.createdAt)}</span>`],
+        ]);
         const d = await api('GET', `/conversations/${id}/messages?page=1&pageSize=50`);
         const msgs = d?.list || [];
         if (!msgs.length) { termPrint('<span class="term-dim">（暂无消息）</span>'); return; }
         for (const m of msgs) {
-          const who = m.role === 'user' ? '<span class="term-hl">me&gt;</span>' : '<span class="term-ok">ai&gt;</span>';
-          termPrint(`${who} ${esc(m.content)}`);
+          if (m.role === 'user') termPrintUser(esc(m.content));
+          else termAIBlock(m.content);
         }
         termPrint(`<span class="term-dim">— 共 ${msgs.length} 条历史消息，<span class="term-hl">chat</span> 继续对话 —</span>`);
         break;
@@ -1385,8 +1490,10 @@ const TERM_CMDS = {
         const id = num(args[0]);
         if (!id) { termPrint('<span class="term-warn">用法：conv show &lt;id&gt;</span>'); return; }
         const c = await api('GET', `/conversations/${id}`);
-        termPrint(`<span class="term-hl">#${c.id}</span> ${esc(c.title || '新对话')}`);
-        termPrint(`  知识库：#${c.kbId} · 创建：${new Date(c.createdAt).toLocaleString()}`);
+        termDetail(`<span class="term-hl">#${c.id}</span> ${esc(c.title || '新对话')}`, [
+          ['知识库', `<span class="term-hl">#${c.kbId}</span>`],
+          ['创建', `<span class="term-dim">${fmtTime(c.createdAt)}</span>`],
+        ]);
         break;
       }
       case 'delete': {
@@ -1414,7 +1521,7 @@ const TERM_CMDS = {
       if (term.mode === 'auth') { termPrint('<span class="term-warn">请先登录</span>'); return; }
       const conv = await ensureConv();
       if (!conv) return;
-      termPrint(`<span class="term-hl">me&gt;</span> ${esc(q)}`);
+      termPrintUser(esc(q));
       await termAsk(conv.id, conv.kbId, q);
       return;
     }
@@ -1450,7 +1557,7 @@ async function termChatInput(raw) {
     termPrint('<span class="term-dim">已退出对话模式</span>');
     return;
   }
-  termPrint(`<span class="term-hl">me&gt;</span> ${esc(raw)}`);
+  termPrintUser(esc(raw));
   const conv = term.curConv;
   if (!conv) {
     termPrint('<span class="term-warn">会话已失效，请 <span class="term-hl">conv new</span> 或 <span class="term-hl">conv open</span></span>');
@@ -1466,15 +1573,40 @@ async function termAsk(convId, kbId, q) {
   term.busy = true;
   const line = document.createElement('div');
   line.className = 'term-line';
-  line.innerHTML = '<div class="term-ai-md"><span class="term-ok">ai&gt;</span> <span class="term-ai-text md"></span></div><span class="term-blink">▍</span>';
+  line.innerHTML =
+    '<div class="term-ai-block">' +
+      '<div class="term-ai-status"><span class="term-spinner">⠋</span> <span class="term-ai-status-text">生成中</span> <span class="term-ai-status-dim"></span></div>' +
+      '<div class="term-ai-md"><span class="term-ai-text md"></span></div>' +
+    '</div>';
   authOutput.appendChild(line);
   const textEl = line.querySelector('.term-ai-text');
-  const blinkEl = line.querySelector('.term-blink');
+  const statusEl = line.querySelector('.term-ai-status');
+  const statusTextEl = line.querySelector('.term-ai-status-text');
+  const statusDimEl = line.querySelector('.term-ai-status-dim');
+  const spinnerEl = line.querySelector('.term-spinner');
+  const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+  let spinIdx = 0;
+  const t0 = performance.now();
+  const timer = setInterval(() => {
+    spinIdx = (spinIdx + 1) % SPIN.length;
+    spinnerEl.textContent = SPIN[spinIdx];
+    statusDimEl.textContent = ` (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
+  }, 80);
   const scroll = () => { authOutput.scrollTop = authOutput.scrollHeight; };
   scroll();
 
+  const doneStatus = ok => {
+    clearInterval(timer);
+    statusEl.classList.add(ok ? 'term-ai-status-done' : 'term-ai-status-fail');
+    spinnerEl.remove();
+    statusTextEl.textContent = ok ? '✓ 回答完成' : '✕ 回答失败';
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    statusDimEl.textContent = ok ? ` (${secs}s · ${sources.length} 引用)` : ` (${secs}s)`;
+  };
+
   let fullContent = '';
   let sources = [];
+  let streamError = false;
 
   const handlePart = part => {
     const lines = part.split('\n');
@@ -1498,11 +1630,12 @@ async function termAsk(convId, kbId, q) {
         fullContent = data.fullContent || fullContent;
         sources = data.sources || [];
         textEl.innerHTML = renderMarkdown(fullContent);
-        blinkEl.remove();
+        doneStatus(true);
         scroll();
       } else if (eventType === 'error') {
+        streamError = true;
+        doneStatus(false);
         textEl.textContent = '错误：' + (data.message || '未知错误');
-        blinkEl.remove();
         scroll();
       }
     } catch {}
@@ -1532,8 +1665,9 @@ async function termAsk(convId, kbId, q) {
       if (code === 40100 || code === 40101) {
         handleSessionExpired();
       }
+      doneStatus(false);
       textEl.textContent = '请求失败：' + (msg || '请求失败');
-      blinkEl.remove();
+      scroll();
       term.busy = false;
       return;
     }
@@ -1550,18 +1684,19 @@ async function termAsk(convId, kbId, q) {
       for (const p of parts) handlePart(p);
     }
     if (buf.trim()) handlePart(buf);
+    if (!streamError) doneStatus(sources.length > 0 || fullContent.length > 0);
   } catch (err) {
+    doneStatus(false);
     textEl.textContent = '请求失败：' + (err.message || '未知错误');
-    blinkEl.remove();
     scroll();
     term.busy = false;
     return;
   }
 
   if (sources.length) {
-    termPrint('<span class="term-dim">引用来源：</span>');
+    termPrint(`<span class="term-dim">引用来源 (${sources.length})</span>`);
     sources.forEach((s, i) => {
-      termPrint(`  <span class="term-muted">[${i + 1}]</span> ${esc(s.documentName)} <span class="term-dim">› ${esc(s.sectionPath || '')}</span> <span class="term-ok">${(s.similarity * 100).toFixed(0)}%</span>`);
+      termPrint(`  <span class="term-muted">[${i + 1}]</span> ${esc(clip(s.documentName, 30))} <span class="term-dim">· ${esc(clip(s.sectionPath || '—', 24))}</span> <span class="term-ok">${(s.similarity * 100).toFixed(0)}%</span>`);
     });
   }
   term.busy = false;
@@ -1693,7 +1828,7 @@ function renderKbEmpty() {
   });
   const body = document.getElementById('kb-body');
   body.innerHTML = `<div class="empty-state" id="kb-empty">
-    <div class="empty-title">kb&gt;</div>
+    <pre class="empty-ascii" id="kb-empty-ascii" aria-hidden="true">${ASCII_BANNER.join('\n')}</pre>
     <p class="empty-desc">选择左侧知识库查看详情<br>或点击 <b>+</b> 创建新知识库</p>
   </div>`;
 }
@@ -2292,6 +2427,11 @@ function fmtSize(b) {
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
+function clip(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
 function animateCount(el, target) {
   const n = parseInt(target) || 0;
   if (window.matchMedia('(prefers-reduced-motion:reduce)').matches || n === 0) { el.textContent = n; return; }
@@ -2353,7 +2493,12 @@ function renderMarkdown(src) {
   };
   const flushAll = () => { flushPara(); flushList(); flushQuote(); };
 
-  for (const raw of lines) {
+  // GFM 表格单元格拆分：容忍首尾竖线缺失
+  const splitRow = r => r.replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
+  const isSepRow = cells => cells.length > 0 && cells.every(c => /^:?-{1,}:?$/.test(c));
+
+  for (let li = 0; li < lines.length; li++) {
+    const raw = lines[li];
     const t = raw.trim();
 
     const cb = /^\u0000B(\d+)\u0000$/.exec(t);
@@ -2370,6 +2515,37 @@ function renderMarkdown(src) {
     if (h) { flushAll(); const l = h[1].length; out.push('<h' + l + '>' + mdInline(h[2]) + '</h' + l + '>'); continue; }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flushAll(); out.push('<hr>'); continue; }
+
+    // GFM 表格：连续 | 行；第二行必须是对齐分隔行才识别为表格
+    if (t.startsWith('|') && t.length > 2) {
+      const tblLines = [];
+      let j = li;
+      while (j < lines.length) {
+        const lt = lines[j].trim();
+        if (lt.startsWith('|') && lt.length > 2) { tblLines.push(lt); j++; } else break;
+      }
+      const sepCells = tblLines.length >= 2 ? splitRow(tblLines[1]) : [];
+      if (isSepRow(sepCells)) {
+        flushAll();
+        const aligns = sepCells.map(c => {
+          if (/^:-+:$/.test(c)) return ' style="text-align:center"';
+          if (/-+:$/.test(c)) return ' style="text-align:right"';
+          return '';
+        });
+        const head = splitRow(tblLines[0]).map(mdInline);
+        let html = '<table><thead><tr>'
+          + head.map((c, idx) => '<th' + (aligns[idx] || '') + '>' + c + '</th>').join('')
+          + '</tr></thead><tbody>';
+        for (let k = 2; k < tblLines.length; k++) {
+          const cs = splitRow(tblLines[k]).map(mdInline);
+          html += '<tr>' + head.map((_, idx) => '<td' + (aligns[idx] || '') + '>' + (cs[idx] || '') + '</td>').join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        out.push(html);
+        li = j - 1;
+        continue;
+      }
+    }
 
     const bq = /^&gt;\s?(.*)$/.exec(raw.trim()) || (raw.startsWith('>') ? /^>\s?(.*)$/.exec(raw) : null);
     if (bq) { flushPara(); flushList(); (quote = quote || []).push(mdInline(bq[1])); continue; }
@@ -2517,7 +2693,7 @@ window.addEventListener('resize', () => {
 window.addEventListener('keydown', e => {
   // 终端视图不拦截
   if (document.getElementById('auth-view').classList.contains('active')) return;
-  const inInput = ['INPUT','TEXTAREA'].includes(document.target.tagName);
+  const inInput = ['INPUT','TEXTAREA'].includes(e.target?.tagName);
 
   // Ctrl/Cmd+K 聚焦搜索
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
