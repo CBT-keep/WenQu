@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 放行登录接口
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
-                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.svg").permitAll()
+                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/music/**", "/favicon.svg").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/kbs/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/kbs/**").authenticated()
                         // 其余所有请求都需要认证

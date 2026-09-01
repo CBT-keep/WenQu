@@ -73,16 +73,187 @@ if (savedTheme) {
 
 document.getElementById('app-theme-btn').onclick = toggleTheme;
 
-/* 顶栏音乐播放器开关
-   库会把 .netease-mini-player 替换成 <nmp-player>，真实可见元素是 .nmpv3-player，
-   显隐与右上角定位均通过 html.music-open 类门控（见 style.css） */
-(function() {
+/* 顶栏音乐播放器开关 + 本地播放器逻辑（纯 HTML5 Audio，零外部依赖） */
+/* 内置默认歌单：用户未添加自己的音乐时也能直接播放 */
+const MUSIC_DEFAULT_TRACKS = [
+  'Eutanasia - Ru Frequence.mp3',
+  'River Flows In You - Martin Ermen.mp3',
+  'Running with the Herd - Dexter Britain.mp3',
+  'Turn The Page - Sam Lin.mp3',
+].map(name => ({ name, url: encodeURI('/music/' + name), builtin: true }));
+
+const music = {
+  audio: new Audio(),
+  list: [],        // {name, url, builtin?} — 内置曲目直接引用静态路径，本地文件为 blob URL
+  cur: -1,
+  mode: 'seq',     // seq 顺序 | loop 单曲循环 | rand 随机
+  playing: false,
+};
+
+/* 收起并暂停播放器（登出/进入终端时调用） */
+function stopMusicPlayer() {
+  document.documentElement.classList.remove('music-open');
+  const btn = document.getElementById('btn-music');
+  if (btn) btn.classList.remove('active');
+  music.audio.pause();
+  music.playing = false;
+  updateMusicPlayBtn();
+}
+
+function fmtMusicTime(sec) {
+  if (!Number.isFinite(sec)) return '0:00';
+  const s = Math.floor(sec % 60), m = Math.floor(sec / 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function updateMusicPlayBtn() {
+  const btn = document.getElementById('mp-play');
+  if (btn) { btn.textContent = music.playing ? '⏸' : '▶'; btn.classList.toggle('playing', music.playing); }
+}
+
+function renderMusicList() {
+  const el = document.getElementById('mp-list');
+  if (!el) return;
+  if (!music.list.length) {
+    el.innerHTML = '<div class="music-list-empty">播放列表为空</div>';
+    return;
+  }
+  el.innerHTML = music.list.map((t, i) => `
+    <div class="music-list-item${i === music.cur ? ' playing' : ''}" data-idx="${i}" title="${esc(t.name)}">
+      <span class="idx">${i === music.cur && music.playing ? '▶' : String(i + 1).padStart(2, '0')}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis">${esc(t.name.replace(/\.[^.]+$/, ''))}${t.builtin ? ' <span style="color:var(--text-dim)">· 内置</span>' : ''}</span>
+    </div>`).join('');
+  el.querySelectorAll('.music-list-item').forEach(item => {
+    item.onclick = () => playMusicAt(parseInt(item.dataset.idx, 10));
+  });
+}
+
+function playMusicAt(idx) {
+  if (idx < 0 || idx >= music.list.length) return;
+  music.cur = idx;
+  const track = music.list[idx];
+  if (music.audio.src !== track.url) {
+    music.audio.src = track.url;
+    music.audio.load();
+  }
+  music.audio.play().catch(() => {});
+  const nameEl = document.getElementById('mp-track-name');
+  nameEl.textContent = track.name.replace(/\.[^.]+$/, '');
+  nameEl.classList.remove('empty');
+  renderMusicList();
+}
+
+/* 依据播放模式取下一曲；dir=-1 上一首（随机模式也取随机） */
+function nextMusicIndex(dir) {
+  const n = music.list.length;
+  if (!n) return -1;
+  if (music.mode === 'rand') return Math.floor(Math.random() * n);
+  if (music.mode === 'loop') return music.cur;
+  return (music.cur + dir + n) % n;   // seq：循环顺序
+}
+
+function updateMusicModeBtn() {
+  const btn = document.getElementById('mp-mode');
+  if (btn) btn.textContent = { seq: '顺序', loop: '单曲', rand: '随机' }[music.mode];
+}
+
+(function initMusicPlayer() {
   const btn = document.getElementById('btn-music');
   if (!btn) return;
+  // 初始即加载内置默认歌单，未添加自己的音乐也能直接播放
+  music.list = [...MUSIC_DEFAULT_TRACKS];
   btn.onclick = () => {
     const open = document.documentElement.classList.toggle('music-open');
     btn.classList.toggle('active', open);
+    if (open) renderMusicList();
   };
+
+  const audio = music.audio;
+  audio.volume = 0.8;
+
+  audio.addEventListener('play', () => { music.playing = true; updateMusicPlayBtn(); renderMusicList(); });
+  audio.addEventListener('pause', () => { music.playing = false; updateMusicPlayBtn(); renderMusicList(); });
+  audio.addEventListener('ended', () => {
+    if (music.mode === 'loop') { playMusicAt(music.cur); return; }
+    if (music.mode === 'rand') { playMusicAt(Math.floor(Math.random() * music.list.length)); return; }
+    // 顺序模式：未播完列表则下一首，播完回到第一首并暂停
+    if (music.cur < music.list.length - 1) {
+      playMusicAt(music.cur + 1);
+    } else {
+      playMusicAt(0);
+      audio.pause();
+    }
+  });
+  audio.addEventListener('timeupdate', () => {
+    const seek = document.getElementById('mp-seek');
+    const dur = audio.duration;
+    if (seek && Number.isFinite(dur) && dur > 0 && !seek.dataset.dragging) {
+      seek.value = Math.round(audio.currentTime / dur * 1000);
+    }
+    document.getElementById('mp-time-cur').textContent = fmtMusicTime(audio.currentTime);
+    document.getElementById('mp-time-total').textContent = fmtMusicTime(dur);
+  });
+
+  document.getElementById('mp-play').onclick = () => {
+    if (!music.list.length) { toast('请先添加歌曲', 'warn'); return; }
+    if (music.cur < 0) { playMusicAt(0); return; }
+    if (music.audio.paused) music.audio.play().catch(() => {});
+    else music.audio.pause();
+  };
+  document.getElementById('mp-prev').onclick = () => playMusicAt(nextMusicIndex(-1));
+  document.getElementById('mp-next').onclick = () => playMusicAt(nextMusicIndex(1));
+  document.getElementById('mp-mode').onclick = () => {
+    music.mode = { seq: 'loop', loop: 'rand', rand: 'seq' }[music.mode];
+    updateMusicModeBtn();
+    toast('播放模式：' + { seq: '顺序', loop: '单曲循环', rand: '随机' }[music.mode], 'info');
+  };
+
+  const seek = document.getElementById('mp-seek');
+  seek.addEventListener('input', () => { seek.dataset.dragging = '1'; });
+  seek.addEventListener('change', () => {
+    const dur = audio.duration;
+    if (Number.isFinite(dur) && dur > 0) audio.currentTime = seek.value / 1000 * dur;
+    delete seek.dataset.dragging;
+  });
+  document.getElementById('mp-vol').addEventListener('input', e => {
+    audio.volume = parseInt(e.target.value, 10) / 100;
+  });
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'audio/*';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  fileInput.onchange = () => {
+    for (const f of fileInput.files) {
+      music.list.push({ name: f.name, url: URL.createObjectURL(f) });
+    }
+    fileInput.value = '';
+    renderMusicList();
+    if (music.cur < 0 && music.list.length) playMusicAt(0);
+  };
+  document.getElementById('mp-add').onclick = () => fileInput.click();
+  document.getElementById('mp-clear').onclick = () => {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    // 仅回收本地文件的 blob URL；内置曲目是静态路径无需回收
+    music.list.forEach(t => { if (!t.builtin) URL.revokeObjectURL(t.url); });
+    music.list = [...MUSIC_DEFAULT_TRACKS];
+    music.cur = -1;
+    music.playing = false;
+    updateMusicPlayBtn();
+    const nameEl = document.getElementById('mp-track-name');
+    nameEl.textContent = '未选择曲目';
+    nameEl.classList.add('empty');
+    document.getElementById('mp-time-cur').textContent = '0:00';
+    document.getElementById('mp-time-total').textContent = '0:00';
+    seek.value = 0;
+    renderMusicList();
+    toast('已恢复内置歌单', 'info');
+  };
+  updateMusicModeBtn();
 })();
 
 /* ============================================================
@@ -239,13 +410,6 @@ function closeModal(id) {
 /* ============================================================
    VIEWS
    ============================================================ */
-/* 收起并暂停音乐播放器（登出/进入终端时调用） */
-function stopMusicPlayer() {
-  document.documentElement.classList.remove('music-open');
-  const btn = document.getElementById('btn-music');
-  if (btn) btn.classList.remove('active');
-  try { window.NeteaseMiniPlayer?.pauseAll?.(); } catch { /* 播放器未加载时忽略 */ }
-}
 
 function showAuth() {
   document.getElementById('auth-view').classList.add('active');

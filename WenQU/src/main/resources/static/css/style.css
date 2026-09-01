@@ -614,31 +614,69 @@ kbd{
 }
 .sidebar-item{position:relative}
 
-/* ===== 网易云音乐播放器（顶栏按钮控制） =====
-   库会将 .netease-mini-player 替换为 <nmp-player>，真实可见元素为 .nmpv3-player。
-   注意：库不保证把 data-position 复制到渲染元素上，因此定位在此用
-   高优先级规则无条件钉死右上角，不依赖库的属性选择器 */
+/* ===== 本地音乐播放器（顶栏按钮控制，纯 HTML5 Audio，零外部依赖） ===== */
 /* 默认隐藏，html.music-open 时显示（由顶栏按钮切换） */
-html:not(.music-open) .nmpv3-player{display:none!important}
+html:not(.music-open) .music-panel{display:none}
 /* 登录/终端模式下强制隐藏 */
-#app-view:not(.active) .nmpv3-player{display:none!important}
-/* 钉死右上角、下移避开 header（双写类 + html.music-open 提高优先级，压过库注入样式） */
-html.music-open .nmpv3-player.nmpv3-player{
-  display:flex!important;
-  position:fixed!important;
-  top:calc(var(--term-header-height) + 10px)!important;
-  right:12px!important;
-  left:auto!important;
-  bottom:auto!important;
-  z-index:250!important;
+#app-view:not(.active) .music-panel{display:none}
+.music-panel{
+  position:fixed;
+  top:calc(var(--term-header-height) + 10px);
+  right:12px;
+  z-index:250;
+  width:320px;
+  max-width:calc(100vw - 24px);
+  display:flex;flex-direction:column;gap:10px;
+  padding:14px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+  box-shadow:var(--shadow-pop);
+  font-family:var(--font);
 }
-/* 主题适配 */
-.nmpv3-player{
-  border-radius:var(--r-md)!important;
-  border:1px solid var(--border)!important;
-  box-shadow:var(--shadow-pop)!important;
-  font-family:var(--font)!important;
+.music-track-name{
+  font-size:13px;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-height:18px;
 }
+.music-track-name.empty{color:var(--text-dim);font-weight:400}
+.music-seek{
+  width:100%;height:4px;-webkit-appearance:none;appearance:none;
+  background:var(--border);border-radius:2px;outline:none;cursor:pointer;
+}
+.music-seek::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 6px var(--accent-glow);cursor:pointer;
+}
+.music-time{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+.music-controls{display:flex;align-items:center;gap:6px}
+.music-controls .btn-sm{min-width:34px;text-align:center;padding:4px 6px}
+.music-controls .mc-play{min-width:44px;border-color:var(--accent);color:var(--accent)}
+.music-controls .mc-play.playing{box-shadow:0 0 8px var(--accent-glow)}
+.music-extra{display:flex;align-items:center;gap:8px}
+.music-vol{
+  flex:1;height:4px;-webkit-appearance:none;appearance:none;
+  background:var(--border);border-radius:2px;outline:none;cursor:pointer;
+}
+.music-vol::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+}
+.music-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto}
+.music-list-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px;font-size:12px;color:var(--text);
+  border:1px solid transparent;border-radius:var(--r-sm);cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.music-list-item:hover{background:var(--card-hover)}
+.music-list-item.playing{border-color:var(--accent);color:var(--accent)}
+.music-list-item .idx{color:var(--text-dim);font-variant-numeric:tabular-nums;flex-shrink:0}
+.music-list-empty{font-size:12px;color:var(--text-dim);padding:6px 2px}
+.music-foot{display:flex;gap:6px}
+.music-foot .btn-sm{flex:1;text-align:center}
 /* 顶栏音乐按钮激活态 */
 #btn-music.active{
   border-color:var(--accent);
