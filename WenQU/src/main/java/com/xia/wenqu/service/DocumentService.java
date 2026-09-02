@@ -55,4 +55,9 @@ public interface DocumentService {
      * 批量永久删除文档：整批一个事务，磁盘文件在事务提交后统一清理
      */
     RecycleBatchResultVO batchPurge(List<Long> ids, Long userId);
+
+    /**
+     * 重新处理文档，清空旧分块重新跑
+     */
+    void reprocessDocument(Long id, Long userId);
 }

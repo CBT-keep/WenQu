@@ -268,4 +268,33 @@ public class DocumentServiceImpl implements DocumentService {
         }
         return RecycleBatchResultVO.builder().requested(ids.size()).success(success).skipped(skipped).build();
     }
+
+    /**
+     * 重新处理文档：清空旧分块，重新跑解析 → 切分 → 入库
+     */
+    @Override
+    @Transactional
+    public void reprocessDocument(Long id, Long userId) {
+        Document doc = documentMapper.selectEntityById(id);
+        if (doc == null || !doc.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.DOCUMENT_NOT_FOUND);
+        }
+        // 处理中的文档不允许重新处理，避免异步流水线写库与删除竞态
+        if (PROCESSING_STATUS.contains(doc.getStatus())) {
+            throw new BusinessException(ResultCode.ILLEGAL_STATE, "文档正在处理中，请稍后再重新处理");
+        }
+
+        // 清空旧分块
+        docChunkMapper.deleteByDocumentId(id);
+        documentMapper.updateChunkCount(id, 0);
+
+        // 等事务提交后再触发异步处理，避免与当前事务的 DB 写入竞态
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 触发后台异步处理：解析 → 切分 → 入库
+                documentProcessService.process(id);
+            }
+        });
+    }
 }

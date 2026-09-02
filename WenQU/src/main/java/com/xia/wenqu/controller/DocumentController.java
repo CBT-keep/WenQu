@@ -126,4 +126,15 @@ public class DocumentController {
         passwordVerifier.verify(loginUser, dto.getPassword());
         return Result.ok(documentService.batchPurge(dto.getIds(), loginUser.getUserId()));
     }
+
+    /**
+     * 重处理文档
+     */
+    @PostMapping("/documents/{id}/reprocess")
+    public Result<Void> reprocessDocument(@PathVariable Long id,
+                                          @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("重新处理文档：id={}", id);
+        documentService.reprocessDocument(id, loginUser.getUserId());
+        return Result.ok();
+    }
 }
