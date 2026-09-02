@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xia.wenqu.mapper.ConversationMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO conversation (user_id, kb_id)
+        VALUES (#{userId}, #{kbId})
+    </insert>
+
+    <select id="pageQuery" resultType="com.xia.wenqu.model.vo.ConversationVO">
+        SELECT c.id, c.kb_id, c.title,
+               CAST(UNIX_TIMESTAMP(c.created_at) * 1000 AS UNSIGNED) AS created_at
+        FROM conversation c
+        WHERE c.user_id = #{userId} AND c.deleted = 0
+        ORDER BY c.updated_at DESC
+    </select>
+
+    <select id="selectByIdAndUserId" resultType="com.xia.wenqu.model.vo.ConversationVO">
+        SELECT c.id, c.kb_id, c.title,
+               CAST(UNIX_TIMESTAMP(c.created_at) * 1000 AS UNSIGNED) AS created_at
+        FROM conversation c
+        WHERE c.id = #{id} AND c.user_id = #{userId} AND c.deleted = 0
+    </select>
+
+    <update id="softDelete">
+        UPDATE conversation SET deleted = 1, deleted_at = NOW() WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
+    </update>
+
+    <select id="selectDeletedByUserId" resultType="com.xia.wenqu.model.vo.RecycleConversationVO">
+        SELECT c.id, c.kb_id, kb.name AS kb_name, c.title,
+               (SELECT COUNT(*) FROM message m WHERE m.conversation_id = c.id) AS message_count,
+               CAST(UNIX_TIMESTAMP(c.deleted_at) * 1000 AS UNSIGNED) AS deleted_at
+        FROM conversation c
+        LEFT JOIN knowledge_base kb ON kb.id = c.kb_id
+        WHERE c.user_id = #{userId} AND c.deleted = 1
+        ORDER BY c.deleted_at DESC
+    </select>
+
+    <select id="selectDeletedByIdAndUserId" resultType="com.xia.wenqu.model.entity.Conversation">
+        SELECT * FROM conversation
+        WHERE id = #{id} AND user_id = #{userId} AND deleted = 1
+    </select>
+
+    <update id="restoreById">
+        UPDATE conversation SET deleted = 0, deleted_at = NULL WHERE id = #{id} AND deleted = 1
+    </update>
+
+    <delete id="deletePhysically">
+        DELETE FROM conversation WHERE id = #{id}
+    </delete>
+</mapper>

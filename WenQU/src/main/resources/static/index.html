@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WenQu · 终端知识库</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="stylesheet" href="css/style.css?v=20260904">
+<link rel="stylesheet" href="css/style.css?v=20260902c">
 </head>
 <body>
 
@@ -97,6 +97,7 @@
         <div class="content-header">
           <button class="btn-sm btn-ghost back-btn" id="btn-back-kb">← 返回</button>
           <h2 id="chat-title">对话</h2>
+          <button class="btn-sm" id="btn-chat-history" title="历史会话">历史</button>
         </div>
         <div class="chat-messages" id="chat-messages"></div>
         <div class="chat-input">
@@ -185,24 +186,43 @@
   </div>
 </div>
 
-<!-- 回收站模态框 -->
+<!-- 回收站模态框：加宽布局，文档/知识库分标签页，支持搜索、排序、时间分组与分页 -->
 <div class="modal-overlay" id="modal-recycle">
-  <div class="modal" style="width:640px">
+  <div class="modal recycle-modal">
     <div class="modal-head"><h3>回收站</h3><button class="btn-sm btn-ghost" id="modal-recycle-close">✕</button></div>
-    <div class="modal-body">
-      <div class="recycle-toolbar">
-        <label class="recycle-select-all-label">
-          <input type="checkbox" id="recycle-select-all"> 全选
-        </label>
-        <button class="btn-sm" id="recycle-batch-restore">恢复选中</button>
-        <button class="btn-sm btn-err" id="recycle-batch-purge">永久删除选中</button>
+    <div class="recycle-topbar">
+      <div class="recycle-tabs">
+        <button class="recycle-tab active" data-tab="doc">文档 <span class="cnt" id="recycle-cnt-doc">0</span></button>
+        <button class="recycle-tab" data-tab="kb">知识库 <span class="cnt" id="recycle-cnt-kb">0</span></button>
+        <button class="recycle-tab" data-tab="conv">会话 <span class="cnt" id="recycle-cnt-conv">0</span></button>
       </div>
-      <div class="sidebar-title" style="padding-left:0">文档</div>
-      <div id="recycle-doc-list"></div>
-      <div class="sidebar-title" style="padding-left:0;margin-top:12px">知识库</div>
-      <div id="recycle-kb-list"></div>
+      <input id="recycle-search" placeholder="搜索名称 / 所属知识库" autocomplete="off">
+      <select id="recycle-sort" title="排序方式">
+        <option value="time_desc">删除时间 新→旧</option>
+        <option value="time_asc">删除时间 旧→新</option>
+        <option value="name_asc">按名称排序</option>
+      </select>
     </div>
+    <div class="recycle-toolbar">
+      <label class="recycle-select-all-label">
+        <input type="checkbox" id="recycle-select-all"> <span id="recycle-select-all-text">全选</span>
+      </label>
+      <span class="recycle-sel-info" id="recycle-sel-info"></span>
+      <button class="btn-sm" id="recycle-batch-restore" disabled>恢复选中</button>
+      <button class="btn-sm btn-err" id="recycle-batch-purge" disabled>永久删除选中</button>
+    </div>
+    <div class="recycle-list" id="recycle-list"></div>
+    <div class="recycle-pager" id="recycle-pager"></div>
     <div class="modal-foot"><button id="modal-recycle-ok">关闭</button></div>
+  </div>
+</div>
+
+<!-- 历史会话模态框 -->
+<div class="modal-overlay" id="modal-history">
+  <div class="modal history-modal">
+    <div class="modal-head"><h3>历史会话</h3><button class="btn-sm btn-ghost" id="modal-history-close">✕</button></div>
+    <div class="history-list" id="history-list"></div>
+    <div class="modal-foot"><button id="modal-history-ok">关闭</button></div>
   </div>
 </div>
 
@@ -226,6 +246,6 @@
 <div class="toast-wrap" id="toast-wrap"></div>
 <input type="file" id="term-file-input" accept=".txt,.md,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.html,.csv,.epub" style="display:none">
 
-<script src="js/app.js?v=20260904"></script>
+<script src="js/app.js?v=20260902c"></script>
 </body>
 </html>

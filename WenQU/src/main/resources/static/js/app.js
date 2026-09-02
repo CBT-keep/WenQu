@@ -272,7 +272,7 @@ const state = {
   editingKbId: null,
   docPollTimers: {},
   recycleBatch: null,    // 回收站待认证操作 {mode:'restore'|'purge', items:[{type,id}]}
-  recycleCache: { docs: [], kbs: [] },
+  recycleCache: { docs: [], kbs: [], convs: [] },
 };
 
 function saveAuth(token, user) {
@@ -1934,6 +1934,11 @@ function fmtTime(ts) {
 
 document.getElementById('btn-recycle').onclick = openRecycleModal;
 
+/* 回收站 UI 状态：tab 切换 + 搜索 + 排序 + 分页 + 勾选（翻页/筛选时保持，切 tab 清空） */
+const RECYCLE_PAGE_SIZE = 20;
+const recycleUi = { tab: 'doc', search: '', sort: 'time_desc', page: 1, selected: new Set() };
+const recycleKey = (type, id) => type + ':' + id;
+
 async function openRecycleModal() {
   openModal('modal-recycle');
   await refreshRecycleModal();
@@ -1941,50 +1946,147 @@ async function openRecycleModal() {
 
 async function refreshRecycleModal() {
   if (!document.getElementById('modal-recycle').classList.contains('active')) return;
-  const loading = '<div style="color:var(--text-dim);font-size:13px;padding:6px 0">加载中...</div>';
-  document.getElementById('recycle-doc-list').innerHTML = loading;
-  document.getElementById('recycle-kb-list').innerHTML = loading;
+  document.getElementById('recycle-list').innerHTML = '<div class="recycle-empty">加载中...</div>';
   try {
-    const [docs, kbs] = await Promise.all([
+    const [docs, kbs, convs] = await Promise.all([
       api('GET', '/recycle/documents'),
       api('GET', '/recycle/kbs'),
+      api('GET', '/recycle/conversations'),
     ]);
     state.recycleCache.docs = docs || [];
     state.recycleCache.kbs = kbs || [];
+    state.recycleCache.convs = convs || [];
   } catch {
     state.recycleCache.docs = [];
     state.recycleCache.kbs = [];
+    state.recycleCache.convs = [];
   }
-  renderRecycleLists();
+  // 清掉已不存在条目的勾选（永久删除后避免幽灵勾选）
+  const alive = new Set([
+    ...state.recycleCache.docs.map(d => recycleKey('doc', d.id)),
+    ...state.recycleCache.kbs.map(k => recycleKey('kb', k.id)),
+    ...state.recycleCache.convs.map(c => recycleKey('conv', c.id)),
+  ]);
+  [...recycleUi.selected].forEach(k => { if (!alive.has(k)) recycleUi.selected.delete(k); });
+  renderRecycle();
+}
+
+function recycleFiltered() {
+  const q = recycleUi.search.trim().toLowerCase();
+  const cache = recycleUi.tab === 'doc' ? state.recycleCache.docs
+    : recycleUi.tab === 'kb' ? state.recycleCache.kbs : state.recycleCache.convs;
+  const arr = cache.filter(it =>
+    !q || ((it.name || it.title || '') + ' ' + (it.kbName || '')).toLowerCase().includes(q));
+  const byName = (a, b) => String(a.name || a.title || '').localeCompare(String(b.name || b.title || ''), 'zh-Hans-CN') || ((b.deletedAt || 0) - (a.deletedAt || 0));
+  if (recycleUi.sort === 'time_asc') arr.sort((a, b) => (a.deletedAt || 0) - (b.deletedAt || 0) || byName(a, b));
+  else if (recycleUi.sort === 'name_asc') arr.sort(byName);
+  else arr.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || byName(a, b));
+  return arr;
+}
+
+function recycleGroupOf(ts) {
+  if (!ts) return '更早';
+  const startOfDay = x => { const t = new Date(x); t.setHours(0, 0, 0, 0); return t.getTime(); };
+  const days = (startOfDay(Date.now()) - startOfDay(ts)) / 86400000;
+  if (days <= 0) return '今天';
+  if (days <= 1) return '昨天';
+  if (days <= 7) return '最近 7 天';
+  if (days <= 30) return '最近 30 天';
+  return '更早';
 }
 
 function recycleItemHtml(item, type) {
+  const key = recycleKey(type, item.id);
+  const sel = recycleUi.selected.has(key);
   const meta = type === 'doc'
     ? `${esc(item.kbName || 'kb#' + item.kbId)} · ${fmtSize(item.size)} · ${item.chunkCount || 0} 分块`
-    : `${item.docCount || 0} 个文档`;
+    : type === 'kb'
+      ? `${item.docCount || 0} 个文档`
+      : `${esc(item.kbName || 'kb#' + item.kbId)} · ${item.messageCount || 0} 条消息`;
+  const badge = type === 'conv' ? '会话'
+    : esc(item.type ? ('.' + item.type) : (type === 'doc' ? '文档' : '知识库'));
   return `
-    <div class="doc-name"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-      <input type="checkbox" class="recycle-check" data-type="${type}" data-id="${item.id}">
-      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>
-    </label></div>
-    <span class="badge badge-dim">${esc(item.type ? ('.' + item.type) : (type === 'doc' ? '文档' : '知识库'))}</span>
-    <div class="doc-size">${meta}<br><span style="font-size:11px;opacity:.75">删除于 ${fmtTime(item.deletedAt)}</span></div>
-    <div class="doc-actions">
-      <button class="btn-sm" onclick="recycleAct('${type}', ${item.id}, 'restore')">恢复</button>
-      <button class="btn-sm btn-err" onclick="recycleAct('${type}', ${item.id}, 'purge')">永久删除</button>
+    <div class="recycle-item${sel ? ' selected' : ''}">
+      <input type="checkbox" class="recycle-check" data-key="${key}"${sel ? ' checked' : ''}>
+      <div class="ri-main">
+        <div class="ri-name" title="${esc(item.name || item.title)}">${esc(item.name || item.title || (type === 'conv' ? '新对话' : '未命名'))}</div>
+        <div class="ri-meta">${meta}</div>
+      </div>
+      <span class="badge badge-dim">${badge}</span>
+      <div class="ri-time" title="删除于 ${fmtTime(item.deletedAt)}">${fmtTime(item.deletedAt)}</div>
+      <div class="ri-actions">
+        <button class="btn-sm" onclick="recycleAct('${type}', ${item.id}, 'restore')">恢复</button>
+        <button class="btn-sm btn-err" onclick="recycleAct('${type}', ${item.id}, 'purge')">永久删除</button>
+      </div>
     </div>`;
 }
 
-function renderRecycleLists() {
-  const emptyHint = '<div style="color:var(--text-dim);font-size:13px;padding:4px 0">暂无内容</div>';
-  const docs = state.recycleCache.docs;
-  const kbs = state.recycleCache.kbs;
-  document.getElementById('recycle-doc-list').innerHTML = docs.length
-    ? docs.map(d => `<div class="doc-item">${recycleItemHtml(d, 'doc')}</div>`).join('')
-    : emptyHint;
-  document.getElementById('recycle-kb-list').innerHTML = kbs.length
-    ? kbs.map(k => `<div class="doc-item">${recycleItemHtml(k, 'kb')}</div>`).join('')
-    : emptyHint;
+function renderRecycle() {
+  const tab = recycleUi.tab;
+  const cache = tab === 'doc' ? state.recycleCache.docs
+    : tab === 'kb' ? state.recycleCache.kbs : state.recycleCache.convs;
+  const tabLabel = { doc: '文档', kb: '知识库', conv: '会话' }[tab];
+  document.getElementById('recycle-cnt-doc').textContent = state.recycleCache.docs.length;
+  document.getElementById('recycle-cnt-kb').textContent = state.recycleCache.kbs.length;
+  document.getElementById('recycle-cnt-conv').textContent = state.recycleCache.convs.length;
+  document.querySelectorAll('#modal-recycle .recycle-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+
+  const items = recycleFiltered();
+  const pages = Math.max(1, Math.ceil(items.length / RECYCLE_PAGE_SIZE));
+  if (recycleUi.page > pages) recycleUi.page = pages;
+  const start = (recycleUi.page - 1) * RECYCLE_PAGE_SIZE;
+  const pageItems = items.slice(start, start + RECYCLE_PAGE_SIZE);
+
+  const listEl = document.getElementById('recycle-list');
+  const q = recycleUi.search.trim();
+  if (!pageItems.length) {
+    listEl.innerHTML = `<div class="recycle-empty">${
+      !cache.length ? `回收站中暂无${tabLabel}`
+        : q ? `没有匹配「${esc(q)}」的条目` : '暂无条目'
+    }</div>`;
+  } else {
+    // 按删除时间分组展示；按名称排序时时间分组会交叉，跳过分组
+    const grouping = recycleUi.sort !== 'name_asc';
+    let html = '', lastGroup = null;
+    for (const it of pageItems) {
+      if (grouping) {
+        const g = recycleGroupOf(it.deletedAt);
+        if (g !== lastGroup) { html += `<div class="recycle-group"><span>${g}</span><i></i></div>`; lastGroup = g; }
+      }
+      html += recycleItemHtml(it, tab);
+    }
+    listEl.innerHTML = html;
+  }
+  listEl.scrollTop = 0;
+
+  const pager = document.getElementById('recycle-pager');
+  pager.style.display = pages > 1 ? 'flex' : 'none';
+  pager.innerHTML =
+    `<button class="btn-sm" id="recycle-prev"${recycleUi.page <= 1 ? ' disabled' : ''}>‹ 上一页</button>` +
+    `<span>第 ${recycleUi.page} / ${pages} 页</span>` +
+    `<button class="btn-sm" id="recycle-next"${recycleUi.page >= pages ? ' disabled' : ''}>下一页 ›</button>`;
+  const prev = document.getElementById('recycle-prev');
+  const next = document.getElementById('recycle-next');
+  if (prev) prev.onclick = () => { recycleUi.page--; renderRecycle(); };
+  if (next) next.onclick = () => { recycleUi.page++; renderRecycle(); };
+
+  updateRecycleBar(items);
+}
+
+/* 全选框三态 + 已选统计 + 批量按钮可用性 */
+function updateRecycleBar(items) {
+  const keys = new Set(items.map(it => recycleKey(recycleUi.tab, it.id)));
+  let sel = 0;
+  recycleUi.selected.forEach(k => { if (keys.has(k)) sel++; });
+  const sa = document.getElementById('recycle-select-all');
+  sa.checked = items.length > 0 && sel === items.length;
+  sa.indeterminate = sel > 0 && sel < items.length;
+  document.getElementById('recycle-select-all-text').textContent = sa.checked ? '取消全选' : '全选';
+  document.getElementById('recycle-sel-info').textContent =
+    sel ? `已选 ${sel} / ${items.length} 条` : `共 ${items.length} 条`;
+  document.getElementById('recycle-batch-restore').disabled = !sel;
+  document.getElementById('recycle-batch-purge').disabled = !sel;
 }
 
 /* 回收站操作入口：单个（内联按钮）与批量（工具栏）统一走批量接口，一次密码认证 */
@@ -1993,9 +2095,9 @@ function recycleAct(type, id, mode) {
 }
 
 function recycleBatchAct(mode) {
-  const items = [];
-  document.querySelectorAll('.recycle-check').forEach(cb => {
-    if (cb.checked) items.push({ type: cb.dataset.type, id: parseInt(cb.dataset.id, 10) });
+  const items = [...recycleUi.selected].map(k => {
+    const [type, id] = k.split(':');
+    return { type, id: parseInt(id, 10) };
   });
   if (!items.length) { toast('请先勾选要操作的条目', 'warn'); return; }
   if (mode === 'purge' && !confirm(`将永久删除选中的 ${items.length} 项，此操作不可恢复！确定继续？`)) return;
@@ -2006,11 +2108,13 @@ function startRecycleAuth(mode, items) {
   state.recycleBatch = { mode, items };
   const label = mode === 'purge' ? '永久删除' : '恢复';
   const typeLabel = items.every(i => i.type === 'doc') ? '文档'
-    : items.every(i => i.type === 'kb') ? '知识库' : '条目';
+    : items.every(i => i.type === 'kb') ? '知识库'
+    : items.every(i => i.type === 'conv') ? '会话' : '条目';
   const names = items.map(it => {
-    const cache = it.type === 'doc' ? state.recycleCache.docs : state.recycleCache.kbs;
+    const cache = it.type === 'doc' ? state.recycleCache.docs
+      : it.type === 'kb' ? state.recycleCache.kbs : state.recycleCache.convs;
     const f = cache.find(x => x.id === it.id);
-    return f?.name || ('#' + it.id);
+    return f?.name || f?.title || ('#' + it.id);
   });
   const summary = names.slice(0, 3).map(n => `「${n}」`).join('、')
     + (names.length > 3 ? ` 等 ${names.length} 项` : `（共 ${names.length} 项）`);
@@ -2033,8 +2137,8 @@ async function confirmPasswordAction() {
   if (!pwd) { errEl.textContent = '请输入密码'; return; }
   errEl.textContent = '';
 
-  // 按类型分组，分别调用文档/知识库批量接口
-  const groups = { doc: [], kb: [] };
+  // 按类型分组，分别调用文档/知识库/会话批量接口
+  const groups = { doc: [], kb: [], conv: [] };
   b.items.forEach(it => groups[it.type].push(it.id));
   let success = 0, skipped = 0;
   try {
@@ -2044,6 +2148,10 @@ async function confirmPasswordAction() {
     }
     if (groups.kb.length) {
       const r = await api('POST', `/kbs/batch-${b.mode}`, { ids: groups.kb, password: pwd }, false, true);
+      success += r.success; skipped += r.skipped;
+    }
+    if (groups.conv.length) {
+      const r = await api('POST', `/conversations/batch-${b.mode}`, { ids: groups.conv, password: pwd }, false, true);
       success += r.success; skipped += r.skipped;
     }
   } catch (err) {
@@ -2063,9 +2171,42 @@ async function confirmPasswordAction() {
 
 document.getElementById('recycle-batch-restore').onclick = () => recycleBatchAct('restore');
 document.getElementById('recycle-batch-purge').onclick = () => recycleBatchAct('purge');
-document.getElementById('recycle-select-all').onchange = e => {
-  document.querySelectorAll('.recycle-check').forEach(cb => { cb.checked = e.target.checked; });
+
+document.querySelectorAll('#modal-recycle .recycle-tab').forEach(btn => {
+  btn.onclick = () => {
+    if (recycleUi.tab === btn.dataset.tab) return;
+    recycleUi.tab = btn.dataset.tab;
+    recycleUi.search = '';
+    recycleUi.page = 1;
+    recycleUi.selected.clear();
+    document.getElementById('recycle-search').value = '';
+    renderRecycle();
+  };
+});
+document.getElementById('recycle-search').addEventListener('input', e => {
+  recycleUi.search = e.target.value;
+  recycleUi.page = 1;
+  renderRecycle();
+});
+document.getElementById('recycle-sort').onchange = e => {
+  recycleUi.sort = e.target.value;
+  recycleUi.page = 1;
+  renderRecycle();
 };
+document.getElementById('recycle-select-all').onchange = e => {
+  if (e.target.checked) recycleFiltered().forEach(it => recycleUi.selected.add(recycleKey(recycleUi.tab, it.id)));
+  else recycleUi.selected.clear();
+  renderRecycle();
+};
+// 条目勾选：轻量更新（不整页重绘，保持滚动位置）
+document.getElementById('recycle-list').addEventListener('change', e => {
+  const cb = e.target.closest('.recycle-check');
+  if (!cb) return;
+  if (cb.checked) recycleUi.selected.add(cb.dataset.key);
+  else recycleUi.selected.delete(cb.dataset.key);
+  cb.closest('.recycle-item')?.classList.toggle('selected', cb.checked);
+  updateRecycleBar(recycleFiltered());
+});
 
 document.getElementById('modal-recycle-close').onclick =
   document.getElementById('modal-recycle-ok').onclick = () => closeModal('modal-recycle');
@@ -2200,6 +2341,76 @@ document.getElementById('btn-new-chat').onclick = async () => {
 document.getElementById('btn-start-chat').onclick = () =>
   document.getElementById('btn-new-chat').click();
 document.getElementById('btn-back-kb').onclick = showKbView;
+
+/* 历史会话：GUI 入口，查看 / 继续 / 删除过往会话 */
+document.getElementById('btn-chat-history').onclick = openHistoryModal;
+document.getElementById('modal-history-close').onclick =
+  document.getElementById('modal-history-ok').onclick = () => closeModal('modal-history');
+
+async function openHistoryModal() {
+  await loadConversations();
+  renderHistoryList();
+  openModal('modal-history');
+}
+
+function renderHistoryList() {
+  const listEl = document.getElementById('history-list');
+  const list = state.conversations || [];
+  if (!list.length) {
+    listEl.innerHTML = '<div class="history-empty">暂无历史会话<br><span>发起对话后会自动保存在这里</span></div>';
+    return;
+  }
+  listEl.innerHTML = list.map(c => {
+    const kb = state.kbs.find(k => k.id === c.kbId);
+    const cur = state.currentConv?.id === c.id;
+    return `
+      <div class="history-item${cur ? ' current' : ''}">
+        <div class="hi-main">
+          <div class="hi-title">${esc(c.title || '新对话')}${cur ? '<span class="badge badge-ready">当前</span>' : ''}</div>
+          <div class="hi-meta">${kb ? esc(kb.name) : '知识库 #' + c.kbId} · ${fmtTime(c.createdAt)}</div>
+        </div>
+        <div class="hi-actions">
+          <button class="btn-sm" onclick="openHistoryConversation(${c.id})"${cur ? ' disabled' : ''}>${cur ? '进行中' : '打开'}</button>
+          <button class="btn-sm btn-err" onclick="deleteHistoryConversation(${c.id})">删除</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function openHistoryConversation(id) {
+  try {
+    const c = await api('GET', `/conversations/${id}`);
+    if (!state.currentKb || state.currentKb.id !== c.kbId) {
+      state.currentKb = state.kbs.find(k => k.id === c.kbId) || await api('GET', `/kbs/${c.kbId}`);
+      renderKbList();
+    }
+    state.currentConv = c;
+    updateAppTitle();
+    state.chatMsgs = [];
+    document.getElementById('chat-title').textContent = c.title || '新对话';
+    document.getElementById('chat-messages').innerHTML = '';
+    const d = await api('GET', `/conversations/${id}/messages?page=1&pageSize=50`);
+    (d?.list || []).forEach(m => appendMsg(m.role === 'user' ? 'user' : 'assistant', m.content));
+    showChatView();
+    closeModal('modal-history');
+  } catch {}
+}
+
+async function deleteHistoryConversation(id) {
+  const c = (state.conversations || []).find(x => x.id === id);
+  if (!confirm(`删除会话「${c?.title || '新对话'}」？删除后可在回收站恢复。`)) return;
+  try {
+    await api('DELETE', `/conversations/${id}`);
+    if (state.currentConv?.id === id) {
+      state.currentConv = null;
+      updateAppTitle();
+      showKbView();
+    }
+    toast('已移入回收站', 'ok');
+    await loadConversations();
+    renderHistoryList();
+  } catch {}
+}
 
 async function loadConversations() {
   try {
