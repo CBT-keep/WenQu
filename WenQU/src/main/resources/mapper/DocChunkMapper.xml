@@ -13,4 +13,17 @@
     <delete id="deleteByDocumentId">
         DELETE FROM doc_chunk WHERE document_id = #{documentId}
     </delete>
+
+    <select id="selectCandidatesByKbId" resultType="com.xia.wenqu.model.query.ChunkCandidate">
+        SELECT c.id,
+               c.document_id,
+               d.name AS document_name,
+               c.content,
+               c.section_path,
+               c.embedding
+        FROM doc_chunk c
+        JOIN document d ON d.id = c.document_id AND d.deleted = 0
+        WHERE c.kb_id = #{kbId}
+          AND c.embedding IS NOT NULL
+    </select>
 </mapper>

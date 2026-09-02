@@ -8,14 +8,18 @@ import com.xia.wenqu.model.dto.PasswordConfirmDTO;
 import com.xia.wenqu.model.dto.RecycleBatchDTO;
 import com.xia.wenqu.model.vo.KBVO;
 import com.xia.wenqu.model.vo.RecycleBatchResultVO;
+import com.xia.wenqu.model.vo.SourceVO;
 import com.xia.wenqu.security.LoginUser;
 import com.xia.wenqu.security.PasswordVerifier;
 import com.xia.wenqu.service.KnowledgeBaseService;
+import com.xia.wenqu.service.RetrievalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 知识库相关接口，带上UserId，确保权限分置
@@ -28,6 +32,20 @@ public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final PasswordVerifier passwordVerifier;
+    private final RetrievalService retrievalService;
+
+    /**
+     * 知识库语义检索测试端点：问题向量化 → 余弦相似度 → Top-K
+     * 后续聊天问答会内部调用同一套检索，这里先独立暴露方便调参验证
+     */
+    @GetMapping("/{id}/search")
+    public Result<List<SourceVO>> search(@PathVariable Long id,
+                                         @RequestParam String q,
+                                         @RequestParam(defaultValue = "5") int topK,
+                                         @AuthenticationPrincipal LoginUser loginUser) {
+        log.info("知识库检索:id={},q={},topK={}", id, q, topK);
+        return Result.ok(retrievalService.search(loginUser.getUserId(), id, q, topK));
+    }
 
     /**
      * 创建知识库

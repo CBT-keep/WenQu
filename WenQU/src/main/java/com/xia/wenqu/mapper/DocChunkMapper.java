@@ -1,6 +1,7 @@
 package com.xia.wenqu.mapper;
 
 import com.xia.wenqu.model.entity.DocChunk;
+import com.xia.wenqu.model.query.ChunkCandidate;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -24,4 +25,10 @@ public interface DocChunkMapper {
      * 删除某文档的所有分块
      */
     int deleteByDocumentId(@Param("documentId") Long documentId);
+
+    /**
+     * 查询某知识库下所有带向量的分块，检索候选集
+     * 只取未删除文档的分块
+     */
+    List<ChunkCandidate> selectCandidatesByKbId(@Param("kbId") Long kbId);
 }
