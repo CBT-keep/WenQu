@@ -262,6 +262,7 @@ function updateMusicModeBtn() {
    ============================================================ */
 const state = {
   token: localStorage.getItem('wq_token') || null,
+  refreshToken: localStorage.getItem('wq_refresh_token') || null,
   user: (() => { try { return JSON.parse(localStorage.getItem('wq_user') || 'null'); } catch { return null; } })(),
   kbs: [],
   currentKb: null,
@@ -275,17 +276,23 @@ const state = {
   recycleCache: { docs: [], kbs: [], convs: [] },
 };
 
-function saveAuth(token, user) {
+function saveAuth(token, user, refreshToken) {
   state.token = token;
   state.user = user;
   localStorage.setItem('wq_token', token);
   localStorage.setItem('wq_user', JSON.stringify(user));
+  if (refreshToken) {
+    state.refreshToken = refreshToken;
+    localStorage.setItem('wq_refresh_token', refreshToken);
+  }
 }
 
 function clearAuth() {
   state.token = null;
+  state.refreshToken = null;
   state.user = null;
   localStorage.removeItem('wq_token');
+  localStorage.removeItem('wq_refresh_token');
   localStorage.removeItem('wq_user');
 }
 
@@ -310,7 +317,7 @@ const HTTP_STATUS_MAP = {
   502: [50200, '外部服务错误'],
 };
 
-async function api(method, path, body, isForm, silent) {
+async function api(method, path, body, isForm, silent, retried) {
   const h = {};
   if (state.token) h['Authorization'] = 'Bearer ' + state.token;
   const opts = { method, headers: h };
@@ -350,12 +357,57 @@ async function api(method, path, body, isForm, silent) {
   if (code === 0) return json ? json.data : null;
 
   if (code === 40100 || code === 40101) {
+    // access 失效：先用 refresh token 无感刷新，成功则重试一次原请求
+    if (state.refreshToken && !retried && (await maybeRefreshToken())) {
+      return api(method, path, body, isForm, silent, true);
+    }
     handleSessionExpired();
     throw new ApiError(code, message || '未登录或 token 无效');
   }
 
   if (!silent) toast(message || '请求失败', 'err');
   throw new ApiError(code, message || '请求失败');
+}
+
+/* ---- 双 token 无感刷新（并发调用共享同一个刷新请求） ---- */
+let _refreshing = null;
+
+async function refreshAccessToken() {
+  if (!state.refreshToken) throw new ApiError(40100, '登录已过期');
+  if (!_refreshing) {
+    _refreshing = (async () => {
+      const res = await fetch(API + '/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: state.refreshToken }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j || j.code !== 0 || !j.data || !j.data.token) {
+        clearAuth();
+        throw new ApiError(40100, '登录已过期，请重新登录');
+      }
+      // 轮换：后端已作废旧 refresh，保存新双 token
+      saveAuth(j.data.token, j.data.user || state.user, j.data.refreshToken);
+    })();
+    _refreshing.finally(() => { _refreshing = null; });
+  }
+  return _refreshing;
+}
+
+async function maybeRefreshToken() {
+  try { await refreshAccessToken(); return true; } catch { return false; }
+}
+
+/** 非 2xx 响应 → {code, msg}，流式请求的错误解析共用 */
+async function readErrorCode(resp) {
+  const text = await resp.text();
+  let j = null;
+  try { j = JSON.parse(text); } catch { j = null; }
+  if (j && typeof j.code === 'number') {
+    return { code: j.code, msg: j.message || null };
+  }
+  const entry = HTTP_STATUS_MAP[resp.status];
+  return { code: entry ? entry[0] : 50000, msg: entry ? entry[1] : '请求失败' };
 }
 
 /* ============================================================
@@ -847,7 +899,7 @@ async function cmdLogin(args) {
     // 直接提供密码仍立即认证；命令行回显已由 maskSensitiveCmd 遮罩
     termPrint('<span class="term-dim">认证中...</span>');
     const data = await api('POST', '/auth/login', { username, password });
-    saveAuth(data.token, data.user);
+    saveAuth(data.token, data.user, data.refreshToken);
     termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || username));
     enterAppTerm();
     return;
@@ -856,7 +908,7 @@ async function cmdLogin(args) {
     try {
       termPrint('<span class="term-dim">认证中...</span>');
       const data = await api('POST', '/auth/login', { username, password });
-      saveAuth(data.token, data.user);
+      saveAuth(data.token, data.user, data.refreshToken);
       termPrint('<span class="term-ok">✓ 登录成功</span> — ' + esc(data.user?.nickname || data.user?.username || username));
       enterAppTerm();
     } catch (err) {
@@ -1106,7 +1158,7 @@ const TERM_CMDS = {
 
   logout() {
     if (term.mode === 'auth') { termPrint('<span class="term-warn">尚未登录</span>'); return; }
-    api('POST', '/auth/logout').catch(() => {});
+    api('POST', '/auth/logout', { refreshToken: state.refreshToken }).catch(() => {});
     doLogout();
   },
 
@@ -1601,12 +1653,13 @@ async function termAsk(convId, kbId, q) {
     spinnerEl.remove();
     statusTextEl.textContent = ok ? '✓ 回答完成' : '✕ 回答失败';
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    statusDimEl.textContent = ok ? ` (${secs}s · ${sources.length} 引用)` : ` (${secs}s)`;
+    statusDimEl.textContent = ` (${secs}s)`;
   };
 
   let fullContent = '';
   let sources = [];
   let streamError = false;
+  let renderScheduled = false;
 
   const handlePart = part => {
     const lines = part.split('\n');
@@ -1624,8 +1677,16 @@ async function termAsk(convId, kbId, q) {
         if (data.conversationId) term.curConv = { id: data.conversationId, kbId, title: term.curConv?.title || '新对话' };
       } else if (eventType === 'delta') {
         fullContent += data.content || '';
-        textEl.innerHTML = renderMarkdown(fullContent);
-        scroll();
+        // 与 GUI 一致：约 60ms 节流渲染，done 事件再渲染终稿
+        if (!renderScheduled && !streamError) {
+          renderScheduled = true;
+          setTimeout(() => {
+            renderScheduled = false;
+            if (streamError) return;
+            textEl.innerHTML = renderMarkdown(fullContent);
+            scroll();
+          }, 60);
+        }
       } else if (eventType === 'done') {
         fullContent = data.fullContent || fullContent;
         sources = data.sources || [];
@@ -1641,26 +1702,25 @@ async function termAsk(convId, kbId, q) {
     } catch {}
   };
 
-  try {
-    const resp = await fetch(API + '/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + state.token,
-      },
-      body: JSON.stringify({ conversationId: convId, kbId, question: q }),
-    });
+  const send = () => fetch(API + '/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + state.token,
+    },
+    body: JSON.stringify({ conversationId: convId, kbId, question: q }),
+  });
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch { j = null; }
-      let code = j && typeof j.code === 'number' ? j.code : null;
-      let msg = j && j.message ? j.message : null;
-      if (code === null) {
-        const entry = HTTP_STATUS_MAP[resp.status];
-        code = entry ? entry[0] : 50000;
-        msg = msg || (entry ? entry[1] : '请求失败');
+  try {
+    let resp = await send();
+
+    for (let attempt = 0; ; attempt++) {
+      if (resp.ok) break;
+      const { code, msg } = await readErrorCode(resp);
+      // access 过期：无感刷新后重试一次，刷新失败才是真过期
+      if (attempt === 0 && (code === 40100 || code === 40101) && (await maybeRefreshToken())) {
+        resp = await send();
+        continue;
       }
       if (code === 40100 || code === 40101) {
         handleSessionExpired();
@@ -1693,12 +1753,6 @@ async function termAsk(convId, kbId, q) {
     return;
   }
 
-  if (sources.length) {
-    termPrint(`<span class="term-dim">引用来源 (${sources.length})</span>`);
-    sources.forEach((s, i) => {
-      termPrint(`  <span class="term-muted">[${i + 1}]</span> ${esc(clip(s.documentName, 30))} <span class="term-dim">· ${esc(clip(s.sectionPath || '—', 24))}</span> <span class="term-ok">${(s.similarity * 100).toFixed(0)}%</span>`);
-    });
-  }
   term.busy = false;
   updateTermTitle();
 }
@@ -2436,6 +2490,9 @@ async function doSend(q) {
   isStreaming = true;
   document.getElementById('btn-send').disabled = true;
 
+  let renderScheduled = false;
+  let streamClosed = false;
+
   const handlePart = part => {
     const lines = part.split('\n');
     let eventType = '';
@@ -2450,43 +2507,51 @@ async function doSend(q) {
       const data = JSON.parse(dataStr);
       if (eventType === 'delta') {
         fullContent += data.content || '';
-        setAssistantText(assistantEl, fullContent, true);
+        // delta 频率远高于刷新节奏，节流到约 60ms 渲染一次；
+        // 每个 delta 都全量重解析 MD + 读写 scrollHeight 是卡顿的根源
+        if (!renderScheduled) {
+          renderScheduled = true;
+          setTimeout(() => {
+            renderScheduled = false;
+            if (streamClosed) return;
+            setAssistantText(assistantEl, fullContent, true);
+          }, 60);
+        }
       } else if (eventType === 'done') {
+        streamClosed = true;
         fullContent = data.fullContent || fullContent;
-        sources = data.sources || [];
         setAssistantText(assistantEl, fullContent, false);
-        if (sources.length) renderSources(assistantEl, sources);
         assistantEl.dataset.rawText = fullContent;
       } else if (eventType === 'error') {
+        streamClosed = true;
         setAssistantText(assistantEl, '错误：' + (data.message || '未知错误'), false);
       }
     } catch {}
   };
 
-  try {
-    const resp = await fetch(API + '/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + state.token,
-      },
-      body: JSON.stringify({
-        conversationId: state.currentConv.id,
-        kbId: state.currentKb.id,
-        question: q,
-      }),
-    });
+  const send = () => fetch(API + '/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + state.token,
+    },
+    body: JSON.stringify({
+      conversationId: state.currentConv.id,
+      kbId: state.currentKb.id,
+      question: q,
+    }),
+  });
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch { j = null; }
-      let code = j && typeof j.code === 'number' ? j.code : null;
-      let msg = j && j.message ? j.message : null;
-      if (code === null) {
-        const entry = HTTP_STATUS_MAP[resp.status];
-        code = entry ? entry[0] : 50000;
-        msg = msg || (entry ? entry[1] : '请求失败');
+  try {
+    let resp = await send();
+
+    for (let attempt = 0; ; attempt++) {
+      if (resp.ok) break;
+      const { code, msg } = await readErrorCode(resp);
+      // access 过期：无感刷新后重试一次，刷新失败才是真过期
+      if (attempt === 0 && (code === 40100 || code === 40101) && (await maybeRefreshToken())) {
+        resp = await send();
+        continue;
       }
       if (code === 40100 || code === 40101) {
         handleSessionExpired(); return;
@@ -2531,6 +2596,9 @@ function appendMsg(role, content, isPlaceholder) {
   el.className = 'msg msg-' + role;
   if (isPlaceholder) {
     el.innerHTML = '<div class="md"></div><span class="cursor"></span>';
+  } else if (role === 'assistant') {
+    // 历史消息与流式输出一致，同样走 MD 渲染
+    el.innerHTML = '<div class="md">' + renderMarkdown(content) + '</div>';
   } else {
     el.textContent = content;
   }
@@ -2589,26 +2657,12 @@ function setAssistantText(el, text, showCursor) {
     document.getElementById('chat-messages').scrollHeight;
 }
 
-function renderSources(el, sources) {
-  const srcEl = document.createElement('div');
-  srcEl.className = 'msg-sources';
-  srcEl.innerHTML =
-    '<div class="src-title">引用来源</div>' +
-    sources
-      .map(
-        s =>
-          `<div class="src-item"><span>${esc(s.documentName)} › ${esc(s.sectionPath || '')}</span><span class="sim">${(s.similarity * 100).toFixed(0)}%</span></div>`
-      )
-      .join('');
-  el.appendChild(srcEl);
-}
-
 /* ============================================================
    LOGOUT
    ============================================================ */
 document.getElementById('btn-logout').addEventListener('click', async () => {
   if (!confirm('确定要登出吗？')) return;
-  try { await api('POST', '/auth/logout'); } catch {}
+  try { await api('POST', '/auth/logout', { refreshToken: state.refreshToken }); } catch {}
   doLogout();
 });
 

@@ -40,7 +40,7 @@ public class SecurityConfig {
                 // 无状态会话
                 .authorizeHttpRequests(auth -> auth
                         // 放行登录接口
-                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh").permitAll()
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/music/**", "/favicon.svg").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/kbs/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/kbs/**").authenticated()

@@ -51,4 +51,14 @@ public interface ConversationMapper {
      * 物理删除会话行（永久删除，消息行由 MessageMapper 单独清理）
      */
     int deletePhysically(@Param("id") Long id);
+
+    /**
+     * 首条提问时把默认标题改为问题摘要
+     */
+    int updateTitle(@Param("id") Long id, @Param("title") String title);
+
+    /**
+     * 刷新最近活跃时间（新消息产生时调用，列表按 updated_at 排序）
+     */
+    int touch(@Param("id") Long id);
 }

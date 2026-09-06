@@ -8,8 +8,11 @@ import com.xia.wenqu.model.dto.RegisterDTO;
 import com.xia.wenqu.model.entity.User;
 import com.xia.wenqu.model.vo.LoginVO;
 import com.xia.wenqu.model.vo.UserVO;
+import com.xia.wenqu.security.RedisTokenStore;
 import com.xia.wenqu.service.AuthService;
 import com.xia.wenqu.utils.JwtUtil;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final RedisTokenStore tokenStore;
 
     /**
      * 注册邀请码，逗号分隔；留空表示关闭注册
@@ -50,17 +55,61 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(
                         loginDTO.getUsername(), loginDTO.getPassword()));
 
-        // 认证成功 → 生成 token
-        String token = jwtUtil.generateToken(authentication.getName());
+        // 认证成功 → 签发双 token
+        return issueTokens(authentication.getName());
+    }
 
-        // 查库拿完整用户信息
-        // TODO 这里可以考虑把用户信息缓存到 Redis，减少数据库查询
-        User user = userMapper.findByUsername(authentication.getName());
+    /**
+     * 无感刷新：校验 refresh 会话存在 → 轮换（旧作废）→ 签发新双 token
+     */
+    @Override
+    public LoginVO refresh(String refreshToken) {
+        Claims claims;
+        try {
+            claims = jwtUtil.parseClaims(refreshToken);
+        } catch (ExpiredJwtException e) {
+            throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID, "登录已过期，请重新登录");
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID);
+        }
+        if (!jwtUtil.isType(claims, JwtUtil.TYPE_REFRESH)) {
+            throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID);
+        }
 
-        // 组装返回结果
+        long userId = JwtUtil.getUserId(claims);
+        String jti = claims.getId();
+        // Redis 中已不存在：已登出/被踢/轮换过，防重放
+        if (!tokenStore.refreshExists(userId, jti)) {
+            throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID, "登录状态已失效，请重新登录");
+        }
+
+        // 轮换：旧 refresh 立即作废，防止重放
+        tokenStore.deleteRefresh(userId, jti);
+        return issueTokens(claims.getSubject());
+    }
+
+    /**
+     * 签发 access + refresh 并登记 refresh 会话
+     */
+    private LoginVO issueTokens(String username) {
+        User user = userMapper.findByUsername(username);
+        if (user == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "账号已被禁用");
+        }
+
+        String access = jwtUtil.generateToken(username, user.getId(), JwtUtil.TYPE_ACCESS);
+        String refresh = jwtUtil.generateToken(username, user.getId(), JwtUtil.TYPE_REFRESH);
+        Claims refreshClaims = jwtUtil.parseClaims(refresh);
+        tokenStore.storeRefresh(user.getId(), refreshClaims.getId(), jwtUtil.refreshExpireSeconds());
+
         return LoginVO.builder()
-                .token(token)
-                .expiresIn(jwtUtil.getExpireSeconds())
+                .token(access)
+                .expiresIn(jwtUtil.accessExpireSeconds())
+                .refreshToken(refresh)
+                .refreshExpiresIn(jwtUtil.refreshExpireSeconds())
                 .user(UserVO.builder()
                         .id(user.getId())
                         .username(user.getUsername())
@@ -121,12 +170,39 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 退出登录
+     * 退出登录：access 进黑名单（TTL=剩余有效期），refresh 会话作废。
+     * 解析失败不报错——登出本身不应因脏 token 失败
      */
     @Override
-    public void logout() {
-        // Spring Security 默认不维护会话，这里不需要做任何操作
-        // TODO 后续引入Redis后，在这里把 token 加入黑名单，防止被继续使用
+    public void logout(String accessToken, String refreshToken) {
+        if (accessToken != null) {
+            try {
+                Claims claims = jwtUtil.parseClaims(accessToken);
+                long remaining = (claims.getExpiration().getTime() - System.currentTimeMillis()) / 1000;
+                tokenStore.blacklist(claims.getId(), remaining);
+            } catch (Exception e) {
+                log.debug("登出时 access token 解析失败，跳过拉黑: {}", e.getMessage());
+            }
+        }
+        if (refreshToken != null) {
+            try {
+                Claims claims = jwtUtil.parseClaims(refreshToken);
+                if (jwtUtil.isType(claims, JwtUtil.TYPE_REFRESH)) {
+                    tokenStore.deleteRefresh(JwtUtil.getUserId(claims), claims.getId());
+                }
+            } catch (Exception e) {
+                log.debug("登出时 refresh token 解析失败，跳过作废: {}", e.getMessage());
+            }
+        }
         log.info("用户登出成功");
+    }
+
+    /**
+     * 秒踢：refresh 会话全删 + 记录踢出时间，旧 access token 由过滤器按签发时间拦截
+     */
+    @Override
+    public void kick(Long userId) {
+        tokenStore.kick(userId, jwtUtil.refreshExpireSeconds());
+        log.info("用户已被秒踢：userId={}", userId);
     }
 }

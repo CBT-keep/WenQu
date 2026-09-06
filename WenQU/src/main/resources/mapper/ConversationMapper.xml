@@ -48,4 +48,12 @@
     <delete id="deletePhysically">
         DELETE FROM conversation WHERE id = #{id}
     </delete>
+
+    <update id="updateTitle">
+        UPDATE conversation SET title = #{title} WHERE id = #{id}
+    </update>
+
+    <update id="touch">
+        UPDATE conversation SET updated_at = NOW() WHERE id = #{id}
+    </update>
 </mapper>

@@ -37,3 +37,9 @@ buildNumber.properties
 ### OS ###
 .DS_Store
 Thumbs.db
+
+### 上传的文档文件 ###
+uploads/
+
+### 本地私密配置（不入库） ###
+application-local.yaml

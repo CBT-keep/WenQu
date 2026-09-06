@@ -2,6 +2,22 @@ spring:
   application:
     name: WenQU
 
+  # 本地私密配置（数据库密码/JWT 密钥/API Key），文件已加入 .gitignore 不进仓库；
+  # 文件缺失不影响启动，也可全部改用对应环境变量注入。
+  # 兼容两种工作目录：从 WenQU/ 运行找 ./，从仓库根目录(E:\WenQu)运行找 ../
+  config:
+    import:
+      - optional:file:./application-local.yaml
+      - optional:file:../application-local.yaml
+
+  # Redis：token 黑名单 / refresh 会话 / 秒踢标记，重启不丢失
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+
   #文件上传配置
   servlet:
     multipart:
@@ -9,9 +25,9 @@ spring:
       max-request-size: 20MB
 
   datasource:
-    url: jdbc:mysql://localhost:3306/wenqu
-    username: root
-    password: 1234
+    url: ${DB_URL:jdbc:mysql://localhost:3306/wenqu}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis:
@@ -19,19 +35,42 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+# JWT 双 token：真实密钥走 application-local.yaml 或 JWT_SECRET，公开仓库不落盘
 jwt:
-    secret: ICAgV2VuUXUyMDI2MDgxMDIwMjkwOTEwCg==
-    expiration: 7200
+    secret: ${JWT_SECRET:}
+    # access token 有效期（秒），短期，过期后前端用 refresh token 无感刷新
+    access-expiration: 1800
+    # refresh token 有效期（秒），长期，同时是踢出标记/refresh 会话的 Redis TTL
+    refresh-expiration: 604800
 
 wenqu:
   upload-dir: ./uploads
   register:
-    # 注册邀请码，逗号分隔；留空表示关闭注册。更换/作废邀请码只需改这里并重启
-    invite-codes: WENQU-2026
+    # 注册邀请码（低敏感，仅注册门槛用），生产环境请通过 INVITE_CODES 更换
+    invite-codes: ${INVITE_CODES:WENQU-2026}
 
+# 对话 LLM：OpenAI 兼容云端 API（三项都填才能启用聊天问答）
+ai:
+  # 兼容端点根地址，例：智谱 https://open.bigmodel.cn/api/paas/v4
+  #                    硅基流动 https://api.siliconflow.cn/v1
+  #                    OpenCode Zen https://opencode.ai/zen/go/v1
+  base-url: ${AI_BASE_URL:}
+  # 访问密钥走环境变量 AI_API_KEY，避免明文提交仓库
+  api-key: ${AI_API_KEY:}
+  # 对话生成模型，例：glm-5.3-flash / mimo-v2.5 / qwen3.8-flash
+  chat-model: ${AI_CHAT_MODEL:}
+  # 生成温度：过低会机械生硬，0.7 左右较自然
+  temperature: 0.7
+  # 单次回答最大输出 token 数，明显缩短等待时长；留空用服务商默认
+  # max-tokens: 1024
+  timeout-seconds: 120
+
+# 向量化：本地 Ollama
 ollama:
-  base-url: http://localhost:11434
-  model: nomic-embed-text
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  # 向量化模型：文档分块与提问向量化用，需与本机已拉取模型一致
+  model: ${OLLAMA_EMBED_MODEL:nomic-embed-text}
+  # 须与向量化模型实际输出维度一致；换模型后需清空 doc_chunk 并重新处理文档
   dimensions: 768
   batch-size: 16
   timeout-seconds: 120

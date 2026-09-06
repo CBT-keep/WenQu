@@ -18,6 +18,7 @@ public enum ResultCode {
     UNAUTHORIZED(40100, "未登录或 token 无效", 401),
     TOKEN_EXPIRED(40101, "token 已过期", 401),
     BAD_CREDENTIALS(40102, "用户名或密码错误", 401),
+    REFRESH_TOKEN_INVALID(40103, "刷新令牌无效或已过期", 401),
     FORBIDDEN(40300, "无权限访问该资源", 403),
     PASSWORD_ERROR(40301, "密码验证失败", 403),
     KB_NOT_FOUND(40400, "知识库不存在", 404),

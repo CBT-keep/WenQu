@@ -30,3 +30,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### 上传的文档文件 ###
+uploads/
+
+### 本地私密配置（不入库） ###
+application-local.yaml

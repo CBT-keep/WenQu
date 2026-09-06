@@ -9,6 +9,19 @@
         ORDER BY id ASC
     </select>
 
+    <select id="selectRecent" resultType="com.xia.wenqu.model.entity.Message">
+        SELECT id, conversation_id, role, content, sources, created_at
+        FROM message
+        WHERE conversation_id = #{conversationId}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message (conversation_id, role, content, sources)
+        VALUES (#{conversationId}, #{role}, #{content}, #{sources})
+    </insert>
+
     <delete id="deleteByConversationId">
         DELETE FROM message WHERE conversation_id = #{conversationId}
     </delete>
