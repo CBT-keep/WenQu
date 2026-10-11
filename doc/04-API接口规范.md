@@ -266,7 +266,10 @@ while (true) {
 
 # 第二部分 · 端点总览
 
-> 图例：🔓 无需认证 · 🔑 需登录 · 🛡️ 需 `ADMIN`/`SUPERADMIN` · 👑 需 `SUPERADMIN` · 👤 受归属校验（USER 仅限本人资源） · ⚡ SSE 流式
+> 图例：🔓 无需认证 · 🔑 需登录 · 🛡️ 需 `ADMIN`/`SUPERADMIN` · 👑 需 `SUPERADMIN` · 👤 受归属校验 · ⚡ SSE 流式
+>
+> **归属校验口径**：知识库 / 文档 / 会话 —— `ADMIN`/`SUPERADMIN` 全可见，`USER` 仅本人；
+> **数据源（含连接信息，敏感）** —— 仅 `SUPERADMIN` 全可见，`ADMIN`/`USER` 仅本人。
 
 ## Auth
 
@@ -606,9 +609,9 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
       "temperature": 0.70, "maxTokens": 4096, "timeoutMs": 60000,
       "isDefault": true, "enabled": true,
       "extraParams": {}, "createdAt": "2026-10-01T10:00:00Z" },
-    { "id": 3, "name": "text-embedding-3-small", "type": "EMBEDDING", "provider": "openai",
+    { "id": 3, "name": "bge-m3", "type": "EMBEDDING", "provider": "openai",
       "baseUrl": "https://api.openai.com/v1", "apiKeyMasked": "sk-****abcd",
-      "modelName": "text-embedding-3-small", "dimension": 1536,
+      "modelName": "bge-m3", "dimension": 1024,
       "isDefault": true, "enabled": true, "createdAt": "2026-10-01T10:05:00Z" }
   ],
   "traceId": "..."
@@ -701,7 +704,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 **Query**：`page`、`size`、`keyword`、`status`（EMPTY/INDEXING/READY）、`ownerId`（🛡️ 时有效）
 
-> USER 只能看到 `owner_id = 自己` 的记录；ADMIN/SUPERADMIN 可见全部。
+> `USER` 只能看到 `owner_id = 自己` 的记录；`ADMIN`/`SUPERADMIN` 可见全部。
 
 ```json
 {
@@ -710,7 +713,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
     "page": 1, "size": 20, "total": 3, "pages": 1,
     "records": [
       { "id": 1, "name": "产品手册知识库", "description": "产品使用文档、API 说明",
-        "embeddingModelId": 3, "embeddingModelName": "text-embedding-3-small",
+        "embeddingModelId": 3, "embeddingModelName": "bge-m3",
         "rerankEnabled": true, "rerankModelId": 4,
         "retrievalMode": "HYBRID", "topK": 8, "scoreThreshold": 0.35,
         "vectorWeight": 0.6, "bm25Weight": 0.4,
@@ -1131,6 +1134,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 ```
 
 > `password` 永不明文返回。
+> **注意**：`/sqlbot/datasources` 全系接口仅返回**本人**创建的数据源（`ADMIN` 亦然），只有 `SUPERADMIN` 可见全部。
 
 ## 8.2 新增数据源
 
@@ -1579,8 +1583,10 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
     { "component": "PostgreSQL", "status": "UP", "latencyMs": 3, "detail": "pgvector 0.7.4" },
     { "component": "MinIO", "status": "UP", "latencyMs": 12, "detail": "bucket: wenqu" },
     { "component": "ChatModel:gpt-4o-mini", "status": "UP", "latencyMs": 842, "detail": "默认模型" },
-    { "component": "EmbeddingModel:text-embedding-3-small", "status": "UP", "latencyMs": 210, "detail": "dim=1536" },
-    { "component": "RerankModel:bge-reranker-v2-m3", "status": "DOWN", "latencyMs": null, "detail": "未启用" },
+    { "component": "EmbeddingModel:bge-m3", "status": "UP", "latencyMs": 210, "detail": "dim=1024" },
+    { "component": "RerankModel:bge-reranker-v2-m3", "status": "UP", "latencyMs": 340, "detail": "精排" },
+    { "component": "Redis", "status": "UP", "latencyMs": 1, "detail": "7.2" },
+    { "component": "RabbitMQ", "status": "UP", "latencyMs": 6, "detail": "wenqu.ingest 积压 0" },
     { "component": "Datasource:prod-pg-01", "status": "UP", "latencyMs": 47, "detail": "86 表" }
   ],
   "traceId": "..."

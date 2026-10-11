@@ -29,7 +29,7 @@
 | 04 | [API 接口规范](./04-API接口规范.md) | 全局约定 + **全部端点定义**（请求/响应示例、错误码） | 前端 / 后端 |
 | 05 | [开发文档](./05-开发文档.md) | 环境搭建、构建运行、目录结构、编码规范、任务拆分 | 开发者 |
 | 06 | [待确认事项](./06-待确认事项.md) | 所有我做了默认假设、需要你拍板的点 | 需求方 |
-| — | [HTML 原型图](./prototype/wenqu-prototype.html) | 单文件多页面原型，**仅供风格与布局参考** | 全员 |
+| — | [HTML 原型图](./prototype/wenqu-prototype.html) | 单文件 **11 页**原型，Codex 式布局（侧栏以会话为主 + 输入框左下角模式切换），视觉对齐 Yuxi/SQLBot，含「设计规范」页固化色板与组件 | 全员 |
 
 ---
 
@@ -43,12 +43,15 @@
 | SQLBot 数据源 | **仅 PostgreSQL**（预留多数据源扩展点） |
 | 文件存储 | **MinIO / S3 兼容对象存储** |
 | 大模型 | **多模型可配置**（CHAT / EMBEDDING / RERANK），对话走 **SSE 流式** |
+| 模型部署 | bge-m3（**1024 维**）/ bge-reranker-v2-m3 **全部云上调用**；全局维度统一 1024 |
+| 中间件 | **Redis**（令牌吊销 / 登录限流 / 配置缓存）+ **RabbitMQ**（文档摄入 / Schema 同步队列） |
 | API 风格 | 路径前缀 `/api/v1` + **统一响应体** `{code,message,data}` |
-| 检索策略 | **混合检索**（pgvector 向量 + BM25）+ **可选重排** |
+| 检索策略 | **混合检索**（bge-m3 向量召回 + zhparser BM25，RRF 融合）→ **bge-reranker-v2-m3 精排** |
 | 文档解析 | PDF / DOCX / MD / TXT / HTML，统一用 **Apache Tika** |
 | SQLBot 输出 | 结果**表格 + 图表（ECharts）+ CSV/Excel 导出** |
-| 权限模型 | 三层角色：**USER / ADMIN / SUPERADMIN** |
-| 原型形式 | 单文件多页面 HTML（CDN Tailwind + shadcn 风格） |
+| 权限模型 | 三层角色：**USER / ADMIN / SUPERADMIN**；ADMIN 管全平台 RAG，但**数据源仅本人**（SUPERADMIN 全可见） |
+| 原型形式 | 单文件多页面 HTML（CDN Tailwind + Lucide 图标） |
+| 视觉基准 | **参考 Yuxi**（`/Users/hbk/Develop/Yuxi/web`，青蓝 `#24839b`）与 **SQLBot**（`/Users/hbk/Develop/SQLBot/frontend`，薄荷绿 `#1cba90`）；布局为 Codex 式。详见 [05 开发文档 §4.1/§4.2](./05-开发文档.md) |
 
 ---
 
