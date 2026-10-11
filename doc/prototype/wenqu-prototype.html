@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文枢 WenQu · 原型图（仅供参考）</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style type="text/tailwindcss">
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .card { @apply bg-white border border-zinc-200 rounded-xl; }
+  .card-s { @apply bg-white border border-zinc-200 rounded-xl shadow-sm; }
+  .btn { @apply inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors; }
+  .btn-primary { @apply btn bg-zinc-900 text-white hover:bg-zinc-700; }
+  .btn-ghost { @apply btn text-zinc-600 hover:bg-zinc-100; }
+  .btn-outline { @apply btn border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100; }
+  .btn-danger { @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50; }
+  .input { @apply w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 placeholder:text-zinc-400; }
+  .label { @apply block text-sm font-medium text-zinc-700 mb-1.5; }
+  .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+  .th { @apply px-4 py-2.5 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 border-b border-zinc-200 whitespace-nowrap; }
+  .td { @apply px-4 py-3 text-sm text-zinc-700 border-b border-zinc-100; }
+  .nav-item { @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-zinc-400 cursor-pointer hover:bg-white/5 hover:text-white transition-colors; }
+  .nav-group { @apply px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-zinc-500; }
+  .page { display: none; }
+  .page.active { display: block; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+  .msg-bubble-user { @apply bg-zinc-900 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[75%] text-sm leading-relaxed; }
+  .msg-bubble-ai { @apply bg-white border border-zinc-200 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%] text-sm leading-relaxed; }
+  .cite { @apply inline-flex items-center justify-center h-4 min-w-4 px-0.5 mx-0.5 rounded text-[10px] bg-indigo-100 text-indigo-700 align-super cursor-pointer; }
+  .snippet { @apply flex items-center gap-2 px-2 py-1.5 rounded-md bg-zinc-50 text-xs text-zinc-600 cursor-pointer hover:bg-zinc-100; }
+</style>
+</head>
+<body class="bg-zinc-50 text-zinc-900">
+
+<!-- ============ 登录页 ============ -->
+<div id="view-login" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8">
+    <div class="flex items-center gap-2.5 mb-1">
+      <div class="h-9 w-9 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-base font-bold">枢</div>
+      <div class="text-lg font-semibold">文枢 WenQu</div>
+    </div>
+    <p class="text-sm text-zinc-500 mb-7">RAG 知识库 × SQLBot 智能数据问答</p>
+    <div class="space-y-4">
+      <div>
+        <label class="label">用户名</label>
+        <input class="input" placeholder="请输入用户名" value="admin">
+      </div>
+      <div>
+        <label class="label">密码</label>
+        <input class="input" type="password" placeholder="请输入密码" value="123456">
+      </div>
+      <button class="btn-primary w-full justify-center !py-2.5" onclick="go('dashboard')">登 录</button>
+      <p class="text-center text-xs text-zinc-400">账号由管理员创建，如需开通请联系系统管理员</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 主应用 ============ -->
+<div id="view-app" class="hidden min-h-screen">
+<div class="flex h-screen overflow-hidden">
+
+  <!-- 侧边栏 -->
+  <aside class="w-60 shrink-0 bg-zinc-900 flex flex-col">
+    <div class="h-14 flex items-center gap-2.5 px-4 border-b border-white/10">
+      <div class="h-8 w-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">枢</div>
+      <div>
+        <div class="text-white font-semibold text-sm leading-tight">文枢 WenQu</div>
+        <div class="text-[10px] text-zinc-500">RAG × SQLBot 平台</div>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto px-2 py-1">
+      <div class="nav-group">概览</div>
+      <div class="nav-item" data-nav="dashboard"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zM13 9h8V3h-8v6z"/></svg>仪表盘</div>
+      <div class="nav-group">RAG 知识库</div>
+      <div class="nav-item" data-nav="kb-list"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>知识库管理</div>
+      <div class="nav-item" data-nav="kb-retrieve"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>检索测试</div>
+      <div class="nav-item" data-nav="chat"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>智能问答</div>
+      <div class="nav-group">SQLBot</div>
+      <div class="nav-item" data-nav="sqlbot-datasource"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>数据源管理</div>
+      <div class="nav-item" data-nav="sqlbot-query"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/></svg>智能查询</div>
+      <div class="nav-group">系统管理 <span class="badge bg-indigo-500/20 text-indigo-300 ml-1">ADMIN+</span></div>
+      <div class="nav-item" data-nav="sys-user"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>用户管理</div>
+      <div class="nav-item" data-nav="sys-model"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM4 12h5m6 0h5M12 4v5m0 6v5"/></svg>模型配置</div>
+      <div class="nav-item" data-nav="sys-setting"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>系统参数</div>
+      <div class="nav-item" data-nav="sys-log"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8m8 4H8m2-8H8"/></svg>操作日志</div>
+    </nav>
+    <div class="p-3 border-t border-white/10">
+      <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer" onclick="showLogin()">
+        <div class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold">管</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-white text-sm leading-tight truncate">admin</div>
+          <div class="text-[10px] text-zinc-500">SUPERADMIN</div>
+        </div>
+        <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容区 -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-14 shrink-0 bg-white border-b border-zinc-200 flex items-center px-6 gap-3">
+      <div id="breadcrumb" class="text-sm text-zinc-500">概览 / <span class="text-zinc-900 font-medium">仪表盘</span></div>
+      <div class="flex-1"></div>
+      <div class="relative w-64 hidden md:block">
+        <svg class="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="input !pl-9 !bg-zinc-50" placeholder="全局搜索（Ctrl+K）">
+      </div>
+      <div class="relative">
+        <button class="btn-ghost !px-2"><svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500"></span></button>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-6 space-y-6">
+
+      <!-- ================= 仪表盘 ================= -->
+      <section id="page-dashboard" class="page active">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><span class="text-sm text-zinc-500">知识库</span><span class="badge bg-blue-50 text-blue-600">RAG</span></div>
+            <div class="text-2xl font-semibold mt-2">12</div>
+            <div class="text-xs text-zinc-400 mt-1">文档 346 · 分片 18,204</div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><span class="text-sm text-zinc-500">今日问答</span><span class="badge bg-violet-50 text-violet-600">对话</span></div>
+            <div class="text-2xl font-semibold mt-2">86</div>
+            <div class="text-xs text-zinc-400 mt-1">较昨日 +12%</div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><span class="text-sm text-zinc-500">NL2SQL 查询</span><span class="badge bg-emerald-50 text-emerald-600">SQLBot</span></div>
+            <div class="text-2xl font-semibold mt-2">43</div>
+            <div class="text-xs text-zinc-400 mt-1">成功率 93.0%</div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><span class="text-sm text-zinc-500">Token 消耗（今日）</span><span class="badge bg-amber-50 text-amber-600">计量</span></div>
+            <div class="text-2xl font-semibold mt-2">1.28M</div>
+            <div class="text-xs text-zinc-400 mt-1">输入 0.86M / 输出 0.42M</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="card-s p-5 lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+              <div class="font-medium">近 14 天问答 / NL2SQL 调用量</div>
+              <div class="flex gap-1.5 text-xs">
+                <span class="badge bg-zinc-100 text-zinc-600">问答</span>
+                <span class="badge bg-emerald-50 text-emerald-600">SQL 查询</span>
+              </div>
+            </div>
+            <div class="h-52 flex items-end gap-1.5">
+              <div class="flex-1 bg-zinc-100 rounded-t h-1/3 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-2/3"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-1/2 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-2/5 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/4"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-3/5 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-1/2"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-1/2 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-4/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-3/4 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-2/3 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-2/3"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-3/5 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/4"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-1/2 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-1/2"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-3/4 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-5/6 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-2/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-2/3 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/5"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-4/5 relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-3/4"></div></div>
+              <div class="flex-1 bg-zinc-100 rounded-t h-full relative"><div class="absolute inset-x-1 bottom-0 bg-zinc-900/80 rounded-t h-1/2"></div></div>
+            </div>
+          </div>
+          <div class="card-s p-5">
+            <div class="font-medium mb-3">系统状态</div>
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between"><span class="text-zinc-500">PostgreSQL + pgvector</span><span class="badge bg-emerald-50 text-emerald-600">正常</span></div>
+              <div class="flex items-center justify-between"><span class="text-zinc-500">MinIO 对象存储</span><span class="badge bg-emerald-50 text-emerald-600">正常</span></div>
+              <div class="flex items-center justify-between"><span class="text-zinc-500">Chat 模型 gpt-4o-mini</span><span class="badge bg-emerald-50 text-emerald-600">连通</span></div>
+              <div class="flex items-center justify-between"><span class="text-zinc-500">Embedding text-embedding-3-small</span><span class="badge bg-emerald-50 text-emerald-600">连通</span></div>
+              <div class="flex items-center justify-between"><span class="text-zinc-500">Rerank bge-reranker-v2</span><span class="badge bg-amber-50 text-amber-600">未启用</span></div>
+              <div class="flex items-center justify-between"><span class="text-zinc-500">数据源 生产库 prod-pg-01</span><span class="badge bg-emerald-50 text-emerald-600">正常</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 知识库列表 ================= -->
+      <section id="page-kb-list" class="page">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-lg font-semibold">知识库管理</h1>
+            <p class="text-sm text-zinc-500">创建与管理 RAG 知识库，导入文档并完成解析、切分、向量化</p>
+          </div>
+          <button class="btn-primary"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新建知识库</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="card-s p-5 hover:border-zinc-400 cursor-pointer transition-colors" onclick="go('kb-detail')">
+            <div class="flex items-start justify-between">
+              <div class="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/></svg></div>
+              <span class="badge bg-emerald-50 text-emerald-600">已就绪</span>
+            </div>
+            <div class="font-medium mt-3">产品手册知识库</div>
+            <div class="text-xs text-zinc-500 mt-1 line-clamp-2">产品使用文档、API 说明、版本变更记录</div>
+            <div class="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-100 text-xs text-zinc-500">
+              <span>📄 56 文档</span><span>🧩 3,014 分片</span><span>dim 1536</span>
+            </div>
+          </div>
+          <div class="card-s p-5 hover:border-zinc-400 cursor-pointer transition-colors">
+            <div class="flex items-start justify-between">
+              <div class="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center text-violet-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/></svg></div>
+              <span class="badge bg-amber-50 text-amber-600">索引中 2</span>
+            </div>
+            <div class="font-medium mt-3">公司制度规范</div>
+            <div class="text-xs text-zinc-500 mt-1 line-clamp-2">人事制度、报销流程、安全规范</div>
+            <div class="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-100 text-xs text-zinc-500">
+              <span>📄 23 文档</span><span>🧩 1,102 分片</span><span>dim 1024</span>
+            </div>
+          </div>
+          <div class="card-s p-5 hover:border-zinc-400 cursor-pointer transition-colors">
+            <div class="flex items-start justify-between">
+              <div class="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/></svg></div>
+              <span class="badge bg-zinc-100 text-zinc-500">空库</span>
+            </div>
+            <div class="font-medium mt-3">业务指标口径库</div>
+            <div class="text-xs text-zinc-500 mt-1 line-clamp-2">指标定义、计算口径、维度说明，供 NL2SQL 语义层引用</div>
+            <div class="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-100 text-xs text-zinc-500">
+              <span>📄 0 文档</span><span>🧩 0 分片</span><span>dim 1536</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 知识库详情（文档管理） ================= -->
+      <section id="page-kb-detail" class="page">
+        <button class="btn-ghost -ml-3 mb-2 text-sm" onclick="go('kb-list')"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>返回知识库列表</button>
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg font-semibold">产品手册知识库</h1>
+              <span class="badge bg-emerald-50 text-emerald-600">已就绪</span>
+              <span class="badge bg-zinc-100 text-zinc-500">模型 text-embedding-3-small / 1536</span>
+            </div>
+            <p class="text-sm text-zinc-500 mt-1">产品使用文档、API 说明、版本变更记录</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-outline">切分配置</button>
+            <button class="btn-primary"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>上传文档</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <!-- 文档列表 -->
+          <div class="card-s overflow-hidden lg:col-span-3">
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-zinc-100">
+              <input class="input !w-64 !py-1.5 !h-9 !bg-zinc-50" placeholder="搜索文档名…">
+              <select class="input !w-36 !py-1.5 !h-9 !bg-zinc-50"><option>全部状态</option><option>解析中</option><option>已就绪</option><option>失败</option></select>
+              <div class="flex-1"></div>
+              <span class="text-xs text-zinc-400">共 56 个文档</span>
+            </div>
+            <table class="w-full">
+              <thead><tr><th class="th">文档名称</th><th class="th">格式</th><th class="th">大小</th><th class="th">分片数</th><th class="th">状态</th><th class="th">更新时间</th><th class="th text-right">操作</th></tr></thead>
+              <tbody>
+                <tr><td class="td font-medium text-zinc-900">产品使用手册 v3.2.pdf</td><td class="td">PDF</td><td class="td">4.2 MB</td><td class="td">481</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">已就绪</span></td><td class="td">2026-10-11 09:12</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">分片</button><button class="btn-ghost !py-1 !px-2 text-xs">重建索引</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+                <tr><td class="td font-medium text-zinc-900">REST API 接口说明.docx</td><td class="td">DOCX</td><td class="td">1.1 MB</td><td class="td">204</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">已就绪</span></td><td class="td">2026-10-11 09:12</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">分片</button><button class="btn-ghost !py-1 !px-2 text-xs">重建索引</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+                <tr><td class="td font-medium text-zinc-900">版本变更记录.md</td><td class="td">MD</td><td class="td">96 KB</td><td class="td">58</td><td class="td"><span class="badge bg-amber-50 text-amber-600">向量化中 42/58</span></td><td class="td">2026-10-11 09:40</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">分片</button><button class="btn-ghost !py-1 !px-2 text-xs">重建索引</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+                <tr><td class="td font-medium text-zinc-900">Sales_Report_2025Q4.pdf</td><td class="td">PDF</td><td class="td">12.8 MB</td><td class="td">0</td><td class="td"><span class="badge bg-red-50 text-red-600">解析失败 · Tika 超时</span></td><td class="td">2026-10-11 08:02</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">重试</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+                <tr><td class="td font-medium text-zinc-900">快速入门.html</td><td class="td">HTML</td><td class="td">216 KB</td><td class="td">0</td><td class="td"><span class="badge bg-zinc-100 text-zinc-500">排队中</span></td><td class="td">2026-10-11 10:01</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">重试</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+                <tr><td class="td font-medium text-zinc-900">常见问题 FAQ / 排障指南.md</td><td class="td">TXT</td><td class="td">42 KB</td><td class="td">88</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">已就绪</span></td><td class="td">2026-10-11 09:12</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">分片</button><button class="btn-ghost !py-1 !px-2 text-xs">重建索引</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+              </tbody>
+            </table>
+            <div class="flex items-center justify-between px-4 py-3 text-sm text-zinc-500">
+              <span>第 1 / 5 页</span>
+              <div class="flex gap-1.5"><button class="btn-outline !py-1 !px-2.5 text-xs">上一页</button><button class="btn-outline !py-1 !px-2.5 text-xs">下一页</button></div>
+            </div>
+          </div>
+          <!-- 右侧信息 -->
+          <div class="space-y-4">
+            <div class="card-s p-5">
+              <div class="font-medium mb-3">切分配置</div>
+              <div class="space-y-3 text-sm text-zinc-600">
+                <div class="flex justify-between"><span>切分策略</span><span class="text-zinc-900">递归字符</span></div>
+                <div class="flex justify-between"><span>块大小</span><span class="text-zinc-900">800 tokens</span></div>
+                <div class="flex justify-between"><span>重叠</span><span class="text-zinc-900">120</span></div>
+                <div class="flex justify-between"><span>分隔符</span><span class="text-zinc-900">\n\n / \n / 。</span></div>
+                <div class="flex justify-between"><span>检索方式</span><span class="text-zinc-900">混合 + 可选重排</span></div>
+              </div>
+            </div>
+            <div class="card-s p-5">
+              <div class="font-medium mb-3">摄入流水线</div>
+              <div class="text-sm space-y-2 text-zinc-600">
+                <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Tika 解析</div>
+                <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>文本清洗</div>
+                <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-amber-500"></span>递归切分</div>
+                <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-zinc-300"></span>向量化（异步）</div>
+                <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-zinc-300"></span>写入 pgvector</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 检索测试 ================= -->
+      <section id="page-kb-retrieve" class="page">
+        <h1 class="text-lg font-semibold mb-1">检索测试</h1>
+        <p class="text-sm text-zinc-500 mb-4">在不发起对话的情况下，直接验证某个知识库的召回质量</p>
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div class="card-s p-5 lg:col-span-2 space-y-4">
+            <div><label class="label">目标知识库</label><select class="input"><option>产品手册知识库</option><option>公司制度规范</option></select></div>
+            <div><label class="label">查询语句</label><textarea class="input" rows="4" placeholder="例如：如何重置管理员密码？">如何重置管理员密码？</textarea></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="label">召回 TopK</label><input class="input" value="8"></div>
+              <div><label class="label">相似度阈值</label><input class="input" value="0.35"></div>
+            </div>
+            <div>
+              <label class="label">检索方式</label>
+              <div class="flex gap-2">
+                <button class="btn-outline !bg-zinc-900 !text-white !border-zinc-900">混合（向量+BM25）</button>
+                <button class="btn-outline">仅向量</button>
+                <button class="btn-outline">仅关键词</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2"><input type="checkbox" checked class="rounded border-zinc-300"><span class="text-sm text-zinc-600">启用重排模型</span></div>
+              <button class="btn-primary">执行检索</button>
+            </div>
+          </div>
+          <div class="lg:col-span-3 space-y-3">
+            <div class="card-s p-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">命中片段 #1</span>
+                <div class="flex items-center gap-2 text-xs"><span class="badge bg-blue-50 text-blue-600">向量 0.892</span><span class="badge bg-emerald-50 text-emerald-600">BM25 命中</span><span class="badge bg-violet-50 text-violet-600">重排 0.951</span></div>
+              </div>
+              <p class="text-sm text-zinc-600 leading-relaxed">管理员密码重置：进入系统管理 → 用户管理 → 选择目标用户 → 重置密码。系统将生成一次性临时密码，用户首次登录后强制修改...</p>
+              <div class="snippet mt-3"><svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>产品使用手册 v3.2.pdf · 第 3 章 · 分片 #128</div>
+            </div>
+            <div class="card-s p-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">命中片段 #2</span>
+                <div class="flex items-center gap-2 text-xs"><span class="badge bg-blue-50 text-blue-600">向量 0.811</span><span class="badge bg-zinc-100 text-zinc-400">BM25 未命中</span><span class="badge bg-violet-50 text-violet-600">重排 0.742</span></div>
+              </div>
+              <p class="text-sm text-zinc-600 leading-relaxed">密码策略：临时密码有效期为 24 小时，连续 5 次输错将锁定账户 30 分钟...</p>
+              <div class="snippet mt-3"><svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>常见问题 FAQ · 分片 #17</div>
+            </div>
+            <div class="card-s p-4 opacity-70">
+              <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium">命中片段 #3</span><span class="badge bg-blue-50 text-blue-600">向量 0.603</span></div>
+              <p class="text-sm text-zinc-600">…密码学基础概念，不属于本查询目标…</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 智能问答 ================= -->
+      <section id="page-chat" class="page">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-8.5rem)]">
+          <!-- 会话列表 -->
+          <div class="card-s flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b border-zinc-100"><button class="btn-outline w-full justify-center text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新建会话</button></div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1 text-sm">
+              <div class="px-3 py-2 rounded-lg bg-zinc-100 text-zinc-900 font-medium cursor-pointer">如何重置管理员密码？</div>
+              <div class="px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-50 cursor-pointer">报销流程是怎么走的？</div>
+              <div class="px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-50 cursor-pointer">v3.2 有哪些新特性？</div>
+              <div class="px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-50 cursor-pointer">API 鉴权方式说明</div>
+            </div>
+            <div class="px-4 py-3 border-t border-zinc-100 space-y-2">
+              <label class="text-xs font-medium text-zinc-500">引用知识库</label>
+              <select class="input !py-1.5 !h-9 !text-sm"><option>产品手册知识库</option><option>公司制度规范</option></select>
+              <select class="input !py-1.5 !h-9 !text-sm"><option>Chat 模型：gpt-4o-mini</option><option>qwen-plus</option></select>
+            </div>
+          </div>
+          <!-- 对话主区 -->
+          <div class="card-s flex flex-col overflow-hidden lg:col-span-3">
+            <div class="px-5 py-3 border-b border-zinc-100 flex items-center gap-2">
+              <span class="font-medium text-sm">如何重置管理员密码？</span>
+              <span class="badge bg-zinc-100 text-zinc-500">SSE 流式</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-5 bg-zinc-50/60">
+              <div class="flex justify-end"><div class="msg-bubble-user">如何重置管理员密码？</div></div>
+              <div class="flex gap-2">
+                <div class="h-7 w-7 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] shrink-0 mt-1">AI</div>
+                <div>
+                  <div class="msg-bubble-ai">管理员密码重置流程如下<span class="cite">1</span>：进入 <b>系统管理 → 用户管理</b>，选择目标用户后点击「重置密码」，系统将生成一次性临时密码<span class="cite">2</span>。临时密码 24 小时内有效，用户首次登录后会被强制修改<span class="cite">2</span>。</div>
+                  <div class="mt-2 ml-1 space-y-1.5">
+                    <div class="snippet max-w-md"><span class="cite !align-middle">1</span>产品使用手册 v3.2.pdf · 3.4 节 账户安全</div>
+                    <div class="snippet max-w-md"><span class="cite !align-middle">2</span>常见问题 FAQ · 分片 #17</div>
+                  </div>
+                  <div class="flex items-center gap-3 mt-2 ml-1 text-xs text-zinc-400">
+                    <span>gpt-4o-mini · 1,238 tokens · 2.3s</span><button class="hover:text-zinc-600">复制</button><button class="hover:text-zinc-600">重新生成</button><button class="hover:text-zinc-600">👍 👎</button>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-2 items-start opacity-60">
+                <div class="h-7 w-7 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] shrink-0">AI</div>
+                <div class="msg-bubble-ai">正在检索知识库<span class="animate-pulse">▍</span></div>
+              </div>
+            </div>
+            <div class="p-4 border-t border-zinc-100">
+              <div class="flex gap-2 items-end">
+                <textarea class="input !bg-zinc-50" rows="2" placeholder="输入您的问题…（Enter 发送，Shift+Enter 换行）"></textarea>
+                <button class="btn-primary h-11"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z"/></svg>发送</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SQLBot 数据源 ================= -->
+      <section id="page-sqlbot-datasource" class="page">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-lg font-semibold">数据源管理</h1><p class="text-sm text-zinc-500">管理 NL2SQL 可连接的 PostgreSQL 数据源，采集并维护 Schema 元数据</p></div>
+          <button class="btn-primary"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加数据源</button>
+        </div>
+        <table class="card-s w-full overflow-hidden">
+          <thead><tr><th class="th">名称</th><th class="th">主机</th><th class="th">库名</th><th class="th">表 / 字段</th><th class="th">Schema 同步</th><th class="th">状态</th><th class="th text-right">操作</th></tr></thead>
+          <tbody>
+            <tr><td class="td font-medium text-zinc-900">prod-pg-01（生产）</td><td class="td">10.0.1.11:5432</td><td class="td">business</td><td class="td">86 表 / 1,204 字段</td><td class="td">2026-10-11 06:00</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">正常</span></td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">连接测试</button><button class="btn-ghost !py-1 !px-2 text-xs">同步 Schema</button><button class="btn-ghost !py-1 !px-2 text-xs">表结构</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+            <tr><td class="td font-medium text-zinc-900">test-pg-02（测试）</td><td class="td">10.0.2.8:5432</td><td class="td">biz_test</td><td class="td">61 表 / 880 字段</td><td class="td">2026-10-10 18:30</td><td class="td"><span class="badge bg-amber-50 text-amber-600">3 天未同步</span></td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">连接测试</button><button class="btn-ghost !py-1 !px-2 text-xs">同步 Schema</button><button class="btn-ghost !py-1 !px-2 text-xs">表结构</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+          </tbody>
+        </table>
+        <div class="card-s mt-6 p-5">
+          <div class="font-medium mb-3">prod-pg-01 · 表结构浏览（Schema 元数据，供 NL2SQL 提示词引用）</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div class="border border-zinc-200 rounded-lg p-3">
+              <div class="flex items-center justify-between"><span class="font-medium text-zinc-900">sales_order</span><span class="text-xs text-zinc-400">含注释 ✓</span></div>
+              <div class="text-xs text-zinc-500 mt-1">销售订单主表</div>
+              <div class="mt-2 space-y-0.5 text-xs text-zinc-500 font-mono">order_id BIGINT · customer_id BIGINT · amount NUMERIC(12,2) · status VARCHAR · created_at TIMESTAMP</div>
+            </div>
+            <div class="border border-zinc-200 rounded-lg p-3">
+              <div class="flex items-center justify-between"><span class="font-medium text-zinc-900">customer</span><span class="text-xs text-zinc-400">含注释 ✓</span></div>
+              <div class="text-xs text-zinc-500 mt-1">客户信息表</div>
+              <div class="mt-2 space-y-0.5 text-xs text-zinc-500 font-mono">id BIGINT · name VARCHAR · region VARCHAR · level INT · created_at TIMESTAMP</div>
+            </div>
+            <div class="border border-dashed border-zinc-300 rounded-lg p-3 flex flex-col items-center justify-center text-zinc-400 cursor-pointer hover:text-zinc-600">
+              <span class="text-sm">+ 还有 84 张表</span><span class="text-xs">点击查看 / 配置NL2SQL 可见表范围</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SQLBot 智能查询 ================= -->
+      <section id="page-sqlbot-query" class="page">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-8.5rem)]">
+          <div class="card-s flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b border-zinc-100"><button class="btn-outline w-full justify-center text-sm">+ 新建查询会话</button></div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1 text-sm">
+              <div class="px-3 py-2 rounded-lg bg-zinc-100 text-zinc-900 font-medium cursor-pointer">各区域上月销售额 TOP 榜</div>
+              <div class="px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-50 cursor-pointer">新客获取趋势（近 90 天）</div>
+              <div class="px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-50 cursor-pointer">哪些客户超过 90 天未下单？</div>
+            </div>
+            <div class="px-4 py-3 border-t border-zinc-100">
+              <label class="text-xs font-medium text-zinc-500">数据源</label>
+              <select class="input !py-1.5 !h-9 !text-sm mt-1.5"><option>prod-pg-01（生产）</option><option>test-pg-02（测试）</option></select>
+              <label class="text-xs font-medium text-zinc-500 mt-2 block">口径参考知识库</label>
+              <select class="input !py-1.5 !h-9 !text-sm mt-1.5"><option>业务指标口径库</option><option>不引用</option></select>
+            </div>
+          </div>
+          <div class="card-s flex flex-col overflow-hidden lg:col-span-3">
+            <div class="px-5 py-3 border-b border-zinc-100 flex items-center gap-2">
+              <span class="font-medium text-sm">各区域上月销售额 TOP 榜</span>
+              <span class="badge bg-emerald-50 text-emerald-600">已执行 · 12 行 · 68ms</span>
+              <div class="flex-1"></div>
+              <button class="btn-ghost !py-1 text-xs">CSV 导出</button>
+              <button class="btn-ghost !py-1 text-xs">Excel 导出</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-5 bg-zinc-50/60">
+              <div class="flex justify-end"><div class="msg-bubble-user">查一下 9 月份各区域的销售额排名，前 5 名，配上图表</div></div>
+              <div class="flex gap-2">
+                <div class="h-7 w-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-[10px] shrink-0 mt-1">SQL</div>
+                <div class="max-w-[85%]">
+                  <div class="msg-bubble-ai !max-w-none">
+                    <div class="text-xs font-medium text-zinc-500 mb-1">生成的 SQL（只读，LIMIT 5）</div>
+                    <pre class="bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto leading-relaxed">SELECT c.region,
+       SUM(o.amount) AS total_amount
+FROM sales_order o
+JOIN customer c ON c.id = o.customer_id
+WHERE o.status = 'COMPLETED'
+  AND o.created_at >= '2026-09-01'
+  AND o.created_at < '2026-10-01'
+GROUP BY c.region
+ORDER BY total_amount DESC
+LIMIT 5;</pre>
+                    <div class="text-xs text-zinc-500 mt-2">口径参考：销售额 = 已完成订单金额合计（来自「业务指标口径库」）</div>
+                  </div>
+                  <div class="card-s mt-2 p-4">
+                    <div class="flex items-center justify-between mb-3"><span class="text-xs font-medium text-zinc-500">结果 · 12 行 → 图表视图</span><div class="flex gap-1"><button class="btn-outline !py-0.5 !px-2 text-xs">表格</button><button class="btn-outline !py-0.5 !px-2 text-xs !bg-zinc-900 !text-white !border-zinc-900">柱状图</button><button class="btn-outline !py-0.5 !px-2 text-xs">折线</button></div></div>
+                    <div class="flex items-end gap-6 h-32 px-2">
+                      <div class="flex-1 flex flex-col items-center gap-1"><div class="w-10 bg-indigo-500 rounded-t" style="height:100%"></div><span class="text-xs text-zinc-500 font-mono">286.4 万</span></div>
+                      <div class="flex-1 flex flex-col items-center gap-1"><div class="w-10 bg-indigo-500/80 rounded-t" style="height:78%"></div><span class="text-xs text-zinc-500">华东 222.4 万</span></div>
+                      <div class="flex-1 flex flex-col items-center gap-1"><div class="w-10 bg-indigo-500/60 rounded-t" style="height:62%"></div><span class="text-xs text-zinc-500">华南 177.6 万</span></div>
+                      <div class="flex-1 flex flex-col items-center gap-1"><div class="w-10 bg-indigo-500/45 rounded-t" style="height:45%"></div><span class="text-xs text-zinc-500">华北 128.9 万</span></div>
+                      <div class="flex-1 flex flex-col items-center gap-1"><div class="w-10 bg-indigo-500/30 rounded-t" style="height:30%"></div><span class="text-xs text-zinc-500">西南 85.9 万</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="p-4 border-t border-zinc-100">
+              <div class="flex gap-2 items-end">
+                <textarea class="input !bg-zinc-50" rows="2" placeholder="用自然语言描述你想查询的数据…"></textarea>
+                <button class="btn-primary h-11"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>生成并执行</button>
+              </div>
+              <p class="text-xs text-zinc-400 mt-2">⚠️ 执行仅限只读查询（SELECT / EXPLAIN），自动加 LIMIT 上限 1000 行，超时 10s 熔断</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 用户管理 ================= -->
+      <section id="page-sys-user" class="page">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-lg font-semibold">用户管理</h1><p class="text-sm text-zinc-500">账号由管理员创建（无开放注册）；SUPERADMIN 可分配 ADMIN / USER</p></div>
+          <button class="btn-primary">+ 新建用户</button>
+        </div>
+        <table class="card-s w-full overflow-hidden">
+          <thead><tr><th class="th">用户名</th><th class="th">昵称</th><th class="th">角色</th><th class="th">状态</th><th class="th">最后登录</th><th class="th">创建时间</th><th class="th text-right">操作</th></tr></thead>
+          <tbody>
+            <tr><td class="td font-medium text-zinc-900">admin</td><td class="td">系统管理员</td><td class="td"><span class="badge bg-red-50 text-red-600">SUPERADMIN</span></td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">启用</span></td><td class="td">今天 09:02</td><td class="td">2026-01-01</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">编辑</button><button class="btn-ghost !py-1 !px-2 text-xs">重置密码</button></td></tr>
+            <tr><td class="td font-medium text-zinc-900">ops_manager</td><td class="td">运营·王敏</td><td class="td"><span class="badge bg-blue-50 text-blue-600">ADMIN</span></td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">启用</span></td><td class="td">昨天 17:44</td><td class="td">2026-03-15</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">编辑</button><button class="btn-ghost !py-1 !px-2 text-xs">禁用</button><button class="btn-ghost !py-1 !px-2 text-xs">重置密码</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+            <tr><td class="td font-medium text-zinc-900">zhangwei</td><td class="td">张伟</td><td class="td"><span class="badge bg-zinc-100 text-zinc-600">USER</span></td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">启用</span></td><td class="td">今天 08:15</td><td class="td">2026-05-20</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">编辑</button><button class="btn-ghost !py-1 !px-2 text-xs">禁用</button><button class="btn-ghost !py-1 !px-2 text-xs">重置密码</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+            <tr><td class="td font-medium text-zinc-900">liuna</td><td class="td">刘娜</td><td class="td"><span class="badge bg-zinc-100 text-zinc-600">USER</span></td><td class="td"><span class="badge bg-zinc-100 text-zinc-500">禁用</span></td><td class="td">—</td><td class="td">2026-09-02</td><td class="td text-right"><button class="btn-ghost !py-1 !px-2 text-xs">启用</button><button class="text-red-500 hover:text-red-700 text-xs px-2">删除</button></td></tr>
+          </tbody>
+        </table>
+        <p class="text-xs text-zinc-400 mt-3">规则：USER 只能操作自己创建的知识库 / 数据源 / 会话；ADMIN 可管理全平台 RAG 与 SQLBot 资源，不可管理用户；SUPERADMIN 独占用户管理与系统参数。</p>
+      </section>
+
+      <!-- ================= 模型配置 ================= -->
+      <section id="page-sys-model" class="page">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-lg font-semibold">模型配置</h1><p class="text-sm text-zinc-500">多供应商管理，统一走 OpenAI 兼容协议（base_url + api_key）；各资源可指定所用模型</p></div>
+          <div class="flex gap-2"><button class="btn-outline">连通性测试</button><button class="btn-primary">+ 添加模型</button></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="badge bg-blue-50 text-blue-600">CHAT</span><span class="font-medium">gpt-4o-mini</span></div><span class="badge bg-emerald-50 text-emerald-600">默认</span></div>
+            <div class="text-xs text-zinc-500 mt-2 font-mono">https://api.openai.com/v1</div>
+            <div class="text-xs text-zinc-400 mt-1">Temperature 0.7 · MaxTokens 4096 · 引用供应商：OpenAI</div>
+            <div class="flex gap-2 mt-4"><button class="btn-outline !py-1 text-xs flex-1">测试</button><button class="btn-outline !py-1 text-xs flex-1">编辑</button><button class="text-red-500 text-xs">删除</button></div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="badge bg-blue-50 text-blue-600">CHAT</span><span class="font-medium">qwen-plus</span></div><span class="badge bg-zinc-100 text-zinc-500">备用</span></div>
+            <div class="text-xs text-zinc-500 mt-2 font-mono">https://dashscope.aliyuncs.com/compatible-mode/v1</div>
+            <div class="text-xs text-zinc-400 mt-1">Temperature 0.5 · MaxTokens 8192</div>
+            <div class="flex gap-2 mt-4"><button class="btn-outline !py-1 text-xs flex-1">测试</button><button class="btn-outline !py-1 text-xs flex-1">编辑</button><button class="text-red-500 text-xs">删除</button></div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="badge bg-violet-50 text-violet-600">EMBEDDING</span><span class="font-medium">text-embedding-3-small</span></div><span class="badge bg-emerald-50 text-emerald-600">默认</span></div>
+            <div class="text-xs text-zinc-500 mt-2 font-mono">https://api.openai.com/v1 · dim 1536</div>
+            <div class="text-xs text-zinc-400 mt-1">被 12 个知识库引用，更换维度需重建全部索引 ⚠️</div>
+            <div class="flex gap-2 mt-4"><button class="btn-outline !py-1 text-xs flex-1">测试</button><button class="btn-outline !py-1 text-xs flex-1">编辑</button><button class="text-red-500 text-xs">删除</button></div>
+          </div>
+          <div class="card-s p-5">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="badge bg-amber-50 text-amber-600">RERANK</span><span class="font-medium">bge-reranker-v2-m3</span></div><span class="badge bg-zinc-100 text-zinc-500">未启用</span></div>
+            <div class="text-xs text-zinc-500 mt-2 font-mono">https://llm.internal/v1</div>
+            <div class="text-xs text-zinc-400 mt-1">混合检索的召回结果将按此模型重排（可选开关）</div>
+            <div class="flex gap-2 mt-4"><button class="btn-outline !py-1 text-xs flex-1">测试</button><button class="btn-outline !py-1 text-xs flex-1">启用</button><button class="text-red-500 text-xs">删除</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 系统参数 ================= -->
+      <section id="page-sys-setting" class="page">
+        <h1 class="text-lg font-semibold mb-1">系统参数</h1>
+        <p class="text-sm text-zinc-500 mb-4">仅 SUPERADMIN 可修改；修改即保存并写入操作日志</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="card-s p-5 space-y-4">
+            <div class="font-medium">RAG 全局参数</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="label">混合检索权重（向量）</label><input class="input" value="0.6"></div>
+              <div><label class="label">混合检索权重（BM25）</label><input class="input" value="0.4"></div>
+              <div><label class="label">默认召回 TopK</label><input class="input" value="8"></div>
+              <div><label class="label">最低相似度阈值</label><input class="input" value="0.35"></div>
+              <div><label class="label">默认块大小（tokens）</label><input class="input" value="800"></div>
+              <div><label class="label">默认块重叠</label><input class="input" value="120"></div>
+            </div>
+            <div class="text-xs text-zinc-400">⚠️ 修改切分默认值不影响已索引文档，需手动「重建索引」</div>
+          </div>
+          <div class="card-s p-5 space-y-4">
+            <div class="font-medium">SQLBot 安全参数</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="label">最大返回行数</label><input class="input" value="1000"></div>
+              <div><label class="label">SQL 执行超时（ms）</label><input class="input" value="10000"></div>
+              <div><label class="label">连接池大小</label><input class="input" value="5"></div>
+              <div><label class="label">SELECT 之外语句</label><select class="input"><option>一律拒绝</option><option>需二次确认</option></select></div>
+            </div>
+            <div><label class="label">禁用关键词黑名单</label><textarea class="input font-mono" rows="2">DROP, TRUNCATE, DELETE, UPDATE, INSERT, ALTER, GRANT</textarea></div>
+          </div>
+          <div class="card-s p-5 space-y-4 lg:col-span-2">
+            <div class="font-medium">存档与日志</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="label">会话/消息保留天数</label><input class="input" value="365"></div>
+              <div><label class="label">对象存储 dispatched 生命周期</label><select class="input"><option>180 天自动清理已删除文档</option><option>永久保留</option></select></div>
+            </div>
+            <div class="flex justify-end"><button class="btn-primary">保存全部参数</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 操作日志 ================= -->
+      <section id="page-sys-log" class="page">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-lg font-semibold">操作日志</h1><p class="text-sm text-zinc-500">审计所有写操作与敏感行为（登录 / 删除 / 配置变更 / SQL 执行）</p></div>
+          <div class="flex gap-2">
+            <select class="input !w-36 !py-1.5 !h-9 !bg-zinc-50"><option>全部类型</option><option>登录</option><option>知识库</option><option>SQL 执行</option><option>系统变更</option></select>
+            <input class="input !w-40 !py-1.5 !h-9 !bg-zinc-50" placeholder="操作人 / IP…">
+            <button class="btn-outline">导出</button>
+          </div>
+        </div>
+        <table class="card-s w-full overflow-hidden">
+          <thead><tr><th class="th">时间</th><th class="th">操作人</th><th class="th">类型</th><th class="th">行为</th><th class="th">目标 / 详情</th><th class="th">IP</th><th class="th">结果</th></tr></thead>
+          <tbody>
+            <tr><td class="td font-mono text-xs">2026-10-11 10:04:22</td><td class="td">admin</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">SQL 执行</span></td><td class="td">NL2SQL 查询 prod-pg-01</td><td class="td font-mono text-xs">SELECT c.region… (12 行)</td><td class="td font-mono text-xs">192.168.3.22</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">成功</span></td></tr>
+            <tr><td class="td font-mono text-xs">2026-10-11 09:41:10</td><td class="td">ops_manager</td><td class="td"><span class="badge bg-blue-50 text-blue-600">知识库</span></td><td class="td">上传文档 版本变更记录.md</td><td class="td">产品手册知识库 · 96KB</td><td class="td font-mono text-xs">192.168.3.31</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">成功</span></td></tr>
+            <tr><td class="td font-mono text-xs">2026-10-11 09:05:47</td><td class="td">admin</td><td class="td"><span class="badge bg-red-50 text-red-600">系统变更</span></td><td class="td">修改系统参数 SQL 执行超时</td><td class="td">8000 → 10000 ms</td><td class="td font-mono text-xs">192.168.3.22</td><td class="td"><span class="badge bg-emerald-50 text-emerald-600">成功</span></td></tr>
+            <tr><td class="td font-mono text-xs">2026-10-11 08:58:03</td><td class="td">liuna</td><td class="td"><span class="badge bg-zinc-100 text-zinc-600">登录</span></td><td class="td">登录尝试</td><td class="td">密码连续错误 5 次，账户锁定 30 分钟</td><td class="td font-mono text-xs">203.0.113.5</td><td class="td"><span class="badge bg-red-50 text-red-600">失败</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+</div>
+</div>
+
+<script>
+  const titles = {
+    dashboard: '概览 / 仪表盘',
+    'kb-list': 'RAG / 知识库管理',
+    'kb-detail': 'RAG / 知识库 · 产品手册知识库',
+    'kb-retrieve': 'RAG / 检索测试',
+    chat: 'RAG / 智能问答',
+    'sqlbot-datasource': 'SQLBot / 数据源管理',
+    'sqlbot-query': 'SQLBot / 智能查询',
+    'sys-user': '系统管理 / 用户管理',
+    'sys-model': '系统管理 / 模型配置',
+    'sys-setting': '系统管理 / 系统参数',
+    'sys-log': '系统管理 / 操作日志'
+  };
+  function setNav(id){
+    document.querySelectorAll('.nav-item').forEach(el=>{
+      const on = el.dataset.nav===id;
+      el.classList.toggle('!bg-white/10', on);
+      el.classList.toggle('!text-white', on);
+    });
+  }
+  function go(page){
+    document.getElementById('view-login').classList.add('hidden');
+    const app = document.getElementById('view-app');
+    app.classList.remove('hidden');
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    const target = document.getElementById('page-'+page);
+    if(target) target.classList.add('active');
+    document.getElementById('breadcrumb').innerHTML = (titles[page]||'').replace(/\/([^/]+)$/, '/ <span class="text-zinc-900 font-medium">$1</span>');
+    setNav(page);
+    const sc = document.querySelector('main'); if(sc) sc.scrollTop = 0;
+  }
+  function showLogin(){
+    document.getElementById('view-app').classList.add('hidden');
+    document.getElementById('view-login').classList.remove('hidden');
+  }
+  document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>go(el.dataset.nav)));
+  // 首屏默认展示登录页
+  showLogin();
+</script>
+</body>
+</html>
