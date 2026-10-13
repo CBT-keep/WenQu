@@ -1,0 +1,14 @@
+# 运行时数据目录（上传的文档落在这里，含业务数据，不入库）
+.wenqu-data/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 日志
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db

@@ -333,7 +333,7 @@ while (true) {
 | DELETE | `/documents/{docId}` | 🔑👤 | 删除文档 |
 | POST | `/documents/{docId}/reindex` | 🔑👤 | 重建该文档索引 |
 | POST | `/documents/{docId}/retry` | 🔑👤 | 失败重试 |
-| GET | `/documents/{docId}/download` | 🔑👤 | 获取下载地址（预签名） |
+| GET | `/documents/{docId}/download` | 🔑👤 | 下载文档（鉴权后流式返回二进制） |
 | GET | `/documents/{docId}/chunks` | 🔑👤 | 分片列表（分页） |
 | GET | `/chunks/{chunkId}` | 🔑👤 | 分片详情 |
 | PUT | `/chunks/{chunkId}` | 🔑👤 | 编辑分片（触发重向量化） |
@@ -759,7 +759,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 |---|---|
 | `GET /knowledge-bases/{kbId}` | 详见 5.1 `records[0]` 结构 |
 | `PUT /knowledge-bases/{kbId}` | 字段同创建均可选。**修改 `embeddingModelId` 或 `chunkSize/overlap/separators` 会使已索引分片失效**，响应 `data` 中返回 `needReindex: true` 提示；不自动重建 |
-| `DELETE /knowledge-bases/{kbId}` | 级联删除文档与分片，并删除 MinIO 对象（异步）；`INDEXING` 状态下拒绝，返回 `10004` |
+| `DELETE /knowledge-bases/{kbId}` | 级联删除文档与分片，并异步删除本地文件；删除失败由孤儿文件清理任务兜底；`INDEXING` 状态下拒绝，返回 `10004` |
 
 ## 5.4 知识库统计
 
@@ -927,15 +927,20 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 `GET /api/v1/documents/{docId}/download` · 🔑👤
 
-```json
-{ "code": 0, "message": "success",
-  "data": { "url": "https://minio.internal/wenqu/kb/1/doc/2026/10/uuid.pdf?X-Amz-...",
-            "expiresIn": 600, "fileName": "产品使用手册 v3.2.pdf" },
-  "traceId": "..." }
-```
+**直接返回文件二进制流**，不返回 URL。
 
-> 返回预签名 URL（10 分钟有效），前端直接跳转/下载，不经过后端流式转发。
-> 若前端需要直连 MinIO 域名做 CORS，需在 MinIO 侧配置。
+| 响应头 | 值 |
+|---|---|
+| `Content-Type` | 文档原始 MIME（如 `application/pdf`） |
+| `Content-Disposition` | `attachment; filename*=UTF-8''<urlencoded 原始文件名>` |
+| `Content-Length` | 文件字节数 |
+
+错误码：`40404` 文档不存在 / 文件已丢失；`40301` 无权限（非本人且非 ADMIN）。
+
+> **为什么不再返回预签名 URL**：MinIO 已废弃，本地文件存储无法生成可公开访问的外链。
+> 改为后端鉴权后流式返回，反而更安全 —— 预签名 URL 任何人拿到都能下载、绕过了归属校验，
+> 而现在 `ResourceGuard.checkOwner()` 对每次下载生效。
+> 前端需以 `blob` 方式处理，见文末「附录 · 前端对接要点」第 4 条。
 
 ## 6.7 分片列表
 
@@ -1581,7 +1586,7 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
   "code": 0, "message": "success",
   "data": [
     { "component": "PostgreSQL", "status": "UP", "latencyMs": 3, "detail": "pgvector 0.7.4" },
-    { "component": "MinIO", "status": "UP", "latencyMs": 12, "detail": "bucket: wenqu" },
+    { "component": "LocalStorage", "status": "UP", "latencyMs": 1, "detail": "可用 42.3GB / 共 512GB（.wenqu-data/storage）" },
     { "component": "ChatModel:gpt-4o-mini", "status": "UP", "latencyMs": 842, "detail": "默认模型" },
     { "component": "EmbeddingModel:bge-m3", "status": "UP", "latencyMs": 210, "detail": "dim=1024" },
     { "component": "RerankModel:bge-reranker-v2-m3", "status": "UP", "latencyMs": 340, "detail": "精排" },
@@ -1632,3 +1637,4 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1 | 2026-10-11 | 初稿，覆盖全部端点与统一约定 |
+| v2 | 2026-10-13 | 文件存储由 MinIO 改为本地文件系统：§6.6 下载接口改为后端鉴权流式返回（不再返回预签名 URL）；§5.3 删除知识库改为异步删本地文件；§9.7 健康组件 `MinIO` 改为 `LocalStorage` |

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>文枢 WenQu · 原型图 v2（Codex 式布局 · 参考 Yuxi / SQLBot）</title>
+<title>WenQu · 原型图 v2（Codex 式布局 · 参考 Yuxi / SQLBot）</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
 <style type="text/tailwindcss">
@@ -365,10 +365,8 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
      style="background-color:var(--gray-10); background-image:radial-gradient(var(--gray-200) 1px,transparent 1px); background-size:24px 24px;">
   <nav class="absolute top-0 left-0 w-full pt-8 z-10">
     <div class="max-w-[1500px] mx-auto px-10 flex items-center gap-3">
-      <div class="w-8 h-8 rounded-[8px] flex items-center justify-center text-white text-sm font-bold" style="background:var(--primary)">枢</div>
+      <div class="w-8 h-8 rounded-[8px] flex items-center justify-center text-white text-sm font-bold" style="background:var(--primary)">W</div>
       <div class="text-[20px] font-semibold flex items-center gap-2.5">
-        <span style="color:var(--gray-700)">文枢</span>
-        <span class="inline-block w-1 h-1 rounded-full" style="background:var(--gray-400)"></span>
         <span style="color:var(--main-color)">WenQu</span>
       </div>
     </div>
@@ -378,8 +376,8 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
       <div class="hidden md:flex w-[46%] flex-col justify-between p-10 text-white"
            style="background:linear-gradient(152deg,var(--main-800) 0%,var(--main-600) 55%,var(--main-500) 100%)">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-sm font-bold">枢</div>
-          <span class="text-[15px] font-semibold tracking-wide">文枢 WenQu</span>
+          <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-sm font-bold">W</div>
+          <span class="text-[15px] font-semibold tracking-wide">WenQu</span>
         </div>
         <div>
           <div class="text-[26px] font-semibold leading-snug">RAG 知识库<br/>× SQLBot 智能数据问答</div>
@@ -395,7 +393,7 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
       <div class="flex-1 flex items-center justify-center p-10">
         <div class="w-full max-w-[340px]">
           <div class="text-[13px] mb-1" style="color:var(--gray-600)">欢迎登录</div>
-          <h2 class="text-[22px] font-semibold mb-7" style="color:var(--gray-1000)">登录文枢控制台</h2>
+          <h2 class="text-[22px] font-semibold mb-7" style="color:var(--gray-1000)">登录 WenQu 控制台</h2>
           <div class="space-y-4">
             <div><label class="label">用户名</label><input class="input" style="height:36px" value="admin"></div>
             <div><label class="label">密码</label><input class="input" style="height:36px" type="password" value="admin@123"></div>
@@ -419,8 +417,8 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
   <!-- ---------- 侧边栏 ---------- -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-avatar">枢</div>
-      <div class="brand-name">文枢 WenQu</div>
+      <div class="brand-avatar">W</div>
+      <div class="brand-name">WenQu</div>
       <div class="ml-auto flex gap-0.5">
         <button class="btn-icon" style="width:26px;height:26px" title="搜索会话"><i data-lucide="search" class="w-[15px] h-[15px]"></i></button>
         <button class="btn-icon" style="width:26px;height:26px" title="折叠侧栏"><i data-lucide="panel-left" class="w-[15px] h-[15px]"></i></button>
@@ -537,7 +535,7 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
         <div class="px-5 pb-4">
           <div class="mx-auto" style="max-width:760px">
             <div class="composer">
-              <textarea rows="2" placeholder="给文枢发送消息…（Enter 发送，Shift+Enter 换行）"></textarea>
+              <textarea rows="2" placeholder="给 WenQu 发送消息…（Enter 发送，Shift+Enter 换行）"></textarea>
               <div class="composer-foot">
                 <div class="composer-left">
                   <!-- 左下角：模式切换（参照 Codex 的模型选择按钮） -->
@@ -1229,7 +1227,7 @@ td.wrap, th.wrap, td .wrap { white-space:normal; }
             <div class="text-[15px] font-semibold mb-4" style="color:var(--gray-1000)">组件健康</div>
             <div class="space-y-3 text-[13px]">
               <div class="flex items-center justify-between"><span style="color:var(--gray-600)">PostgreSQL + pgvector</span><span class="tag tag-green">正常</span></div>
-              <div class="flex items-center justify-between"><span style="color:var(--gray-600)">MinIO 对象存储</span><span class="tag tag-green">正常</span></div>
+              <div class="flex items-center justify-between"><span style="color:var(--gray-600)">本地文件存储</span><span class="tag tag-green">正常</span></div>
               <div class="flex items-center justify-between"><span style="color:var(--gray-600)">Chat · gpt-4o-mini</span><span class="tag tag-green">连通</span></div>
               <div class="flex items-center justify-between"><span style="color:var(--gray-600)">Embedding · 3-small</span><span class="tag tag-green">连通</span></div>
               <div class="flex items-center justify-between"><span style="color:var(--gray-600)">Rerank · bge-reranker</span><span class="tag tag-gold">未启用</span></div>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WenQu · Maven 国内镜像配置
+
+  用法（任选其一）：
+    1. 复制到用户目录：  cp scripts/maven-settings.xml ~/.m2/settings.xml
+       Windows:         copy scripts\maven-settings.xml %USERPROFILE%\.m2\settings.xml
+    2. IDEA 指定：      Settings → Build Tools → Maven → User settings file
+    3. 命令行临时指定：  ./mvnw -s scripts/maven-settings.xml clean package
+
+  ⚠️ 两个注意点：
+    - mirrorOf 只写 central，不写 *。写 * 会把将来可能的私有仓库请求也代理走，
+      导致内部依赖拉不到。
+    - Maven 的 mirror 不会自动 failover：同一 mirrorOf 只生效第一个。
+      阿里云不通时，把下面 huawei 那段挪到 aliyun 前面，或注释掉 aliyun。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <mirrors>
+    <!-- 主用：阿里云公共仓库（聚合 central + jcenter），全国 CDN，同步约每小时 -->
+    <mirror>
+      <id>aliyun-central</id>
+      <name>Aliyun Public Repository</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+
+    <!-- 备用：华为云（实时增量同步）。阿里云异常时启用：
+         把它移到 aliyun 之上，或删除上面的 aliyun 段。
+    <mirror>
+      <id>huawei-central</id>
+      <name>HuaweiCloud Repository</name>
+      <url>https://repo.huaweicloud.com/repository/maven/</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+    -->
+  </mirrors>
+
+</settings>
