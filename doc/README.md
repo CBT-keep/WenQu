@@ -32,7 +32,8 @@
 | 02 | [技术架构设计](./02-技术架构设计.md) | 分层架构、模块划分、关键时序、技术选型与风险 | 后端 / 架构 |
 | 03 | [数据库设计](./03-数据库设计.md) | ER 关系、完整 DDL、pgvector 索引、本地文件存储布局 | 后端 |
 | 04 | [API 接口规范](./04-API接口规范.md) | 全局约定 + **全部端点定义**（请求/响应示例、错误码） | 前端 / 后端 |
-| 05 | [开发文档](./05-开发文档.md) | 环境搭建、构建运行、目录结构、编码规范、任务拆分 | 开发者 |
+| 05 | [开发文档](./05-开发文档.md) | 构建运行、目录结构、编码规范、任务拆分、镜像配置原理 | 开发者 |
+| **07** | **[环境搭建指南](./07-环境搭建指南.md)** | **新协作者从零装机手册**：分平台安装、三步配镜像、验收清单、常见报错 | **新人必读** |
 | 06 | [待确认事项](./06-待确认事项.md) | 所有我做了默认假设、需要你拍板的点 | 需求方 |
 | — | [HTML 原型图](./prototype/wenqu-prototype.html) | 单文件 **11 页**原型，Codex 式布局（侧栏以会话为主 + 输入框左下角模式切换），视觉对齐 Yuxi/SQLBot，含「设计规范」页固化色板与组件 | 全员 |
 
@@ -55,7 +56,7 @@
 | API 风格 | 路径前缀 `/api/v1` + **统一响应体** `{code,message,data}` |
 | 检索策略 | **混合检索**（bge-m3 向量召回 + Lucene 中文 BM25，RRF 融合）→ **bge-reranker-v2-m3 精排** |
 | 文档解析 | PDF / DOCX / MD / TXT / HTML，统一用 **Apache Tika** |
-| 环境搭建 | 3 个 Docker 容器（postgres / redis / rabbitmq）；Maven、npm、Docker 均已配国内镜像（见 [05 §2.3](./05-开发文档.md)） |
+| 环境搭建 | 3 个 Docker 容器（postgres / redis / rabbitmq）；Maven、npm、Docker 均已配国内镜像。**新人从零装机见 [07-环境搭建指南](./07-环境搭建指南.md)** |
 | SQLBot 输出 | 结果**表格 + 图表（ECharts）+ CSV/Excel 导出** |
 | 权限模型 | 三层角色：**USER / ADMIN / SUPERADMIN**；ADMIN 管全平台 RAG，但**数据源仅本人**（SUPERADMIN 全可见） |
 | 原型形式 | 单文件多页面 HTML（CDN Tailwind + Lucide 图标） |
@@ -65,34 +66,37 @@
 
 ## 四、如何阅读
 
-1. **先看** `06-待确认事项.md`，把待定项确认掉（其中几项会影响数据结构，越早定越好）。
-2. **前端同学** 重点看 `04-API接口规范.md` 与原型图。
-3. **后端同学** 按 `02 → 03 → 04 → 05` 顺序阅读。
-4. 原型图双击即可用浏览器打开（需联网加载 Tailwind CDN）。
+1. **新同学第一步**：按 [`07-环境搭建指南.md`](./07-环境搭建指南.md) 把机器准备好（约 40 分钟）。
+2. **需求方** 看 `06-待确认事项.md`，把待定项确认掉（其中几项会影响数据结构，越早定越好）。
+3. **前端同学** 重点看 `04-API接口规范.md` 与原型图。
+4. **后端同学** 按 `02 → 03 → 04 → 05` 顺序阅读。
+5. 原型图双击即可用浏览器打开（需联网加载 Tailwind CDN）。
 
-## 五、新协作者环境搭建（5 步）
+## 五、环境搭建速查
 
-> 全部依赖只有 **3 个 Docker 容器**；MinIO 与 zhparser 已移除，无需编译任何数据库扩展。
+> **新机器请直接看 [07-环境搭建指南](./07-环境搭建指南.md)**（含分平台安装步骤、验收清单、常见报错排错）。
+> 下面是"机器已就绪"情况下的速查，约 5 分钟：
 
 ```bash
-# 1. Maven 镜像（仓库内已提供配置）
-cp scripts/maven-settings.xml ~/.m2/settings.xml
-
-# 2. Docker 镜像加速：见 05-开发文档.md §2.3 ③，配好 registry-mirrors 再继续
-
-# 3. 起基础设施（postgres / redis / rabbitmq）
+# 1. 起基础设施（postgres / redis / rabbitmq）
 docker compose up -d && docker compose ps      # 等三个服务 healthy
 
-# 4. 建文件存储目录
+# 2. 建文件存储目录
 mkdir -p .wenqu-data/storage
 
-# 5. 起后端（Flyway 自动建表）
-cd backend && ./mvnw spring-boot:run
+# 3. 起后端（Flyway 自动建表）
+cd backend && mvn spring-boot:run
 ```
 
-npm 无需配置 —— 仓库根目录 `.npmrc` 已内置 `registry.npmmirror.com`，clone 后自动生效。
+**首次装机才需要做的三件事**（各做一次即可）：
 
-**完整说明与排错见 [`05-开发文档.md`](./05-开发文档.md) §1 ~ §2.3。**
+| 事项 | 命令 / 位置 |
+|---|---|
+| Maven 镜像 | `cp scripts/maven-settings.xml ~/.m2/settings.xml` |
+| npm 镜像 | **无需操作** —— 根目录 `.npmrc` 已内置 `registry.npmmirror.com`，clone 后自动生效 |
+| Docker 加速 | Docker Desktop → Settings → Docker Engine，粘贴 [07 §2 ③](./07-环境搭建指南.md) 的 `registry-mirrors` JSON |
+
+Windows 装 Docker 还需管理员跑一次 `.\scripts\setup-windows.ps1` 并重启（启用 WSL2）。
 
 ---
 
