@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/wenqu
+    username: wenqu
+    password: wenqu@123
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: wenqu
+    password: wenqu@123
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+jwt:
+  secretKey: abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz1234567890
+  access-expiration: 7200
+  refresh-expiration: 604800
+
