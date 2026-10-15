@@ -15,6 +15,22 @@ jobs:
   backend:
     name: backend / build & test
     runs-on: ubuntu-latest
+    # BackendApplicationTests 是 @SpringBootTest，启动时要跑 Flyway 迁移，必须有真实 PG
+    # 数据库（与 docker-compose.yml 保持一致）。服务由 runner 起在 localhost:5432。
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: wenqu
+          POSTGRES_USER: wenqu
+          POSTGRES_PASSWORD: wenqu@123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wenqu -d wenqu"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
