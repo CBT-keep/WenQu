@@ -13,6 +13,12 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // E 盘（虚拟盘/网络盘）上原生文件事件不触发，改文件后 dev server 会继续发旧模块，
+    // 表现为"明明改了却没生效、要重启才认"。改用轮询保稳。
+    watch: {
+      usePolling: true,
+      interval: 400,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

@@ -1,151 +1,169 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
-  BookOpen,
+  BookMarked,
   Check,
-  ChevronDown,
-  Database,
   HelpCircle,
   Library,
-  Paperclip,
-  Send,
+  Server,
   Sparkles,
 } from 'lucide-react'
+import { Composer } from '@/components/chat/composer'
+import { ChipSelect, ChipOption, ChipOptionRich } from '@/components/chat/chip-select'
+import { ParticleTitle } from '@/components/particle-title'
 import { Stagger } from '@/components/stagger'
+import { createConversation } from '@/api/chat'
+import { fetchKbOptions } from '@/api/kb'
+import { fetchModelOptions } from '@/api/model'
+import { createSqlConversation, fetchDatasources } from '@/api/sqlbot'
+import { toApiError } from '@/lib/http'
+import { MODE_META, MODE_ORDER, type ChatMode } from '@/lib/mode'
+import { useInvalidateConversations } from '@/hooks/use-conversations'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 
-/**
- * 智能问答 · 欢迎页 —— 登录链路的落点。
- * 布局参照 doc/prototype/wenqu-prototype.html 的 #page-chat-welcome，
- * 对话 / 知识库 / 模型的后端尚未就绪：交互做到"能选模式、能填问题、能发"为止，
- * 发送先给轻提示占位，接口通了把 send() 换成真请求。
- */
-
-type ChatMode = 'rag' | 'sql'
-
-const MODES: { key: ChatMode; label: string; desc: string; icon: ReactNode }[] = [
-  {
-    key: 'rag',
-    label: 'RAG 问答',
-    desc: '检索知识库并生成带引用的回答',
-    icon: <Sparkles className="size-4" />,
-  },
-  {
-    key: 'sql',
-    label: 'SQLBot 查询',
-    desc: '自然语言转 SQL，结果成表成图',
-    icon: <Database className="size-4" />,
-  },
-]
-
-const RECOMMENDED = [
-  '如何重置管理员密码？',
-  '报销流程是怎么走的？需要哪些材料？',
-  'v3.2 相比 v3.1 有哪些变更？',
-]
+const RECOMMENDED: Record<ChatMode, string[]> = {
+  rag: ['如何重置管理员密码？', '报销流程是怎么走的？需要哪些材料？', 'v3.2 相比 v3.1 有哪些变更？'],
+  sql: ['查一下 9 月份各区域的销售额排名，前 5 名', '华东区订单量环比', '哪些客户超过 90 天未下单'],
+}
 
 export default function ChatWelcomePage() {
-  const user = useAuthStore((s) => s.user)
+  const navigate = useNavigate()
   const pushToast = useToastStore((s) => s.push)
+  const invalidateConversations = useInvalidateConversations()
+  const user = useAuthStore((s) => s.user)
 
   const [mode, setMode] = useState<ChatMode>('rag')
-  const [modeOpen, setModeOpen] = useState(false)
   const [draft, setDraft] = useState('')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [kbIds, setKbIds] = useState<number[]>([])
+  const [chatModelId, setChatModelId] = useState<number | undefined>()
+  const [datasourceId, setDatasourceId] = useState<number | undefined>()
+  const [metricKbId, setMetricKbId] = useState<number | undefined>()
 
-  // 输入框随内容长高，封顶 160px 后出内部滚动条
+  const kbOptions = useQuery({ queryKey: ['kb-options'], queryFn: fetchKbOptions })
+  const chatModels = useQuery({ queryKey: ['model-options', 'CHAT'], queryFn: () => fetchModelOptions('CHAT') })
+  const datasources = useQuery({
+    queryKey: ['datasources', { page: 1, size: 50 }],
+    queryFn: () => fetchDatasources({ page: 1, size: 50 }),
+  })
+
+  // 默认选中：第一个可用知识库 / 默认 Chat 模型 / 第一个数据源
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
-  }, [draft])
+    if (kbIds.length === 0 && kbOptions.data?.length) setKbIds([kbOptions.data[0].id])
+  }, [kbOptions.data, kbIds.length])
+  useEffect(() => {
+    if (!chatModelId && chatModels.data?.length) {
+      setChatModelId((chatModels.data.find((m) => m.isDefault) ?? chatModels.data[0]).id)
+    }
+  }, [chatModels.data, chatModelId])
+  useEffect(() => {
+    if (!datasourceId && datasources.data?.records.length) setDatasourceId(datasources.data.records[0].id)
+  }, [datasources.data, datasourceId])
 
-  function focusComposer() {
-    textareaRef.current?.focus({ preventScroll: true })
-  }
+  const chosenKbs = useMemo(
+    () => (kbOptions.data ?? []).filter((kb) => kbIds.includes(kb.id)),
+    [kbOptions.data, kbIds],
+  )
+  const chosenDatasource = datasources.data?.records.find((d) => d.id === datasourceId)
+  const chosenModel = chatModels.data?.find((m) => m.id === chatModelId)
+  const metricKb = kbOptions.data?.find((kb) => kb.id === metricKbId)
+
+  const createRagMut = useMutation({
+    mutationFn: (content: string) =>
+      createConversation({
+        title: content.slice(0, 20),
+        kbIds,
+        chatModelId,
+      }),
+    onSuccess: (conv, content) => {
+      invalidateConversations()
+      navigate(`/chat/rag/${conv.id}`, { state: { firstMessage: content } })
+    },
+    onError: (e) => pushToast(toApiError(e).message),
+  })
+
+  const createSqlMut = useMutation({
+    mutationFn: (content: string) =>
+      createSqlConversation({ datasourceId: datasourceId!, kbId: metricKbId, title: content.slice(0, 20) }),
+    onSuccess: (conv, content) => {
+      invalidateConversations()
+      navigate(`/chat/sql/${conv.id}`, { state: { firstMessage: content } })
+    },
+    onError: (e) => pushToast(toApiError(e).message),
+  })
+
+  const sending = createRagMut.isPending || createSqlMut.isPending
 
   function send() {
-    if (!draft.trim()) return
-    // 对话服务还没实现。保留草稿不丢，只提示。
-    pushToast('对话服务尚未实现，敬请期待')
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    // isComposing：拼音选字阶段的 Enter 是"上屏"，不是"发送"
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault()
-      send()
+    const content = draft.trim()
+    if (!content || sending) return
+    if (mode === 'rag') {
+      createRagMut.mutate(content)
+    } else {
+      if (!datasourceId) {
+        pushToast('请先选择数据源；如无可用数据源，请到「数据源」页添加')
+        return
+      }
+      createSqlMut.mutate(content)
     }
   }
 
   const displayName = user?.nickname ?? user?.username
+  const ModeIcon = MODE_META[mode].Icon
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* 顶栏 */}
-      <header className="flex h-12 flex-none items-center gap-2 border-b border-line px-5">
-        <span className="text-[14px] font-medium">新对话</span>
-        <span className="rounded-sm bg-accent-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-deep">
-          RAG 问答
+    <div className="dot-bg flex h-full min-h-0 flex-col">
+      <header className="flex h-12 flex-none items-center gap-2 border-b border-line bg-bar-bg px-5 backdrop-blur-[8px]">
+        <span className="text-[15px] font-medium">新对话</span>
+        <span
+          className={cn(
+            'rounded-sm px-1.5 py-0.5 text-[12px] font-medium',
+            mode === 'rag' ? 'bg-accent-tint text-accent-deep' : 'bg-info-bg text-info',
+          )}
+        >
+          {MODE_META[mode].label}
         </span>
       </header>
 
-      {/* 中部内容 */}
-      <div className="flex flex-1 flex-col items-center overflow-y-auto px-6 py-8">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8">
         <div className="w-full max-w-[760px]">
           <Stagger className="text-center">
-            <div className="mx-auto mb-4 grid size-12 place-items-center rounded-[14px] bg-accent-tint text-accent">
-              <Sparkles className="size-6" />
-            </div>
-            <h1 className="text-[24px] font-medium tracking-[0.01em]">
+            {/* 品牌粒子标题：原型同款，光标扫过时粒子让路（实现见 ParticleTitle） */}
+            <ParticleTitle className="h-[132px] md:h-[200px]" />
+            <h1 className="mt-6 text-[25px] font-medium tracking-[0.01em]">
               {displayName ? `${displayName}，` : ''}今天想了解点什么？
             </h1>
-            <p className="mt-2 text-[14px] text-ink-2">
-              检索知识库获得带引用的答案，或直接查询业务数据
-            </p>
           </Stagger>
 
           <Stagger delay={70} className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <ModeCard
-              icon={<BookOpen className="size-4" />}
-              title="RAG 问答 · 查文档"
-              desc="检索知识库并生成带引用的回答，也可查询指标口径定义"
-              active={mode === 'rag'}
-              onClick={() => {
-                setMode('rag')
-                focusComposer()
-              }}
-            />
-            <ModeCard
-              icon={<Database className="size-4" />}
-              title="SQLBot 查询 · 查数据"
-              desc="自然语言转 SQL，结果成表成图，可导出"
-              active={mode === 'sql'}
-              onClick={() => {
-                setMode('sql')
-                focusComposer()
-              }}
-            />
+            {MODE_ORDER.map((m) => {
+              const { Icon, cardTitle, cardDesc, tone } = MODE_META[m]
+              return (
+                <ModeCard
+                  key={m}
+                  icon={<Icon className="size-4" />}
+                  title={cardTitle}
+                  desc={cardDesc}
+                  tone={tone}
+                  active={mode === m}
+                  onClick={() => setMode(m)}
+                />
+              )
+            })}
           </Stagger>
 
+          {mode === 'rag' && metricKb === undefined && chosenModel === undefined && null}
+
           <Stagger delay={140} className="mt-7">
-            <p className="mb-2.5 text-[12px] font-medium text-ink-3">推荐问题</p>
+            <p className="mb-2.5 text-[13px] font-medium text-ink-3">推荐问题</p>
             <div className="space-y-2">
-              {RECOMMENDED.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  className={questionCard}
-                  onClick={() => {
-                    setDraft(q)
-                    focusComposer()
-                  }}
-                >
+              {RECOMMENDED[mode].map((q) => (
+                <button key={q} type="button" className={questionCard} onClick={() => setDraft(q)}>
                   <HelpCircle className="size-4 flex-none text-ink-4" />
-                  <span className="truncate text-[13.5px]">{q}</span>
+                  <span className="truncate text-[14.5px]">{q}</span>
                   <ArrowRight className="ml-auto size-[15px] flex-none text-ink-4" />
                 </button>
               ))}
@@ -154,106 +172,173 @@ export default function ChatWelcomePage() {
         </div>
       </div>
 
-      {/* 输入区 */}
       <Stagger delay={210} className="flex-none px-5 pb-4">
-        <div className="mx-auto max-w-[760px]">
-          {/* 聚焦反馈挂在卡片上而不是输入框：输入框自身 outline-none，
-              卡片 focus-within 时描边转橄榄色，克制且一眼可知"正在输入" */}
-          <div className="rounded-xl border border-line-strong bg-bg-card shadow-[var(--shadow-card)] transition-colors focus-within:border-accent-soft">
-            <textarea
-              ref={textareaRef}
-              rows={2}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="给 WenQu 发送消息…（Enter 发送，Shift+Enter 换行）"
-              className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] leading-relaxed outline-none placeholder:text-ink-4"
-            />
-            <div className="flex items-center gap-2 px-3 pb-3">
-              {/* 模式选择 */}
-              <div className="relative">
-                <button
-                  type="button"
-                  className={chip}
-                  onClick={() => setModeOpen((v) => !v)}
-                >
-                  <span className={mode === 'rag' ? 'text-accent' : 'text-info'}>
-                    {MODES.find((m) => m.key === mode)?.icon}
-                  </span>
-                  {MODES.find((m) => m.key === mode)?.label}
-                  <ChevronDown className="size-[13px] text-ink-3" />
-                </button>
-                {modeOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setModeOpen(false)} />
-                    <div className="absolute bottom-full left-0 z-20 mb-1.5 w-64 overflow-hidden rounded-lg border border-line-edge bg-bg-card py-1 shadow-[var(--shadow-pop)]">
-                      {MODES.map((m) => (
+        <Composer
+          className="max-w-[760px]"
+          value={draft}
+          onChange={setDraft}
+          onSend={send}
+          disabled={sending}
+          placeholder={
+            mode === 'rag'
+              ? '给 WenQu 发送消息…（Enter 发送，Shift+Enter 换行）'
+              : '用自然语言描述你想查询的数据，例如「上个月华东区订单量环比」'
+          }
+          leftSlot={
+            <>
+              {/* 模式切换 */}
+              <ChipSelect
+                icon={<ModeIcon className="size-[14px]" />}
+                label={MODE_META[mode].label}
+                tone={MODE_META[mode].tone}
+                menuWidth="min-w-[260px]"
+              >
+                {(close) =>
+                  MODE_ORDER.map((m) => {
+                    const { Icon, label, shortDesc, tone } = MODE_META[m]
+                    return (
+                      <ChipOptionRich
+                        key={m}
+                        icon={<Icon className="size-4" />}
+                        title={label}
+                        desc={shortDesc}
+                        tone={tone}
+                        active={mode === m}
+                        onClick={() => {
+                          setMode(m)
+                          close()
+                        }}
+                      />
+                    )
+                  })
+                }
+              </ChipSelect>
+
+              {mode === 'rag' ? (
+                <>
+                  <ChipSelect
+                    icon={<Library className="size-[14px]" />}
+                    label={chosenKbs.length ? chosenKbs.map((k) => k.name).join('、') : '不引用知识库'}
+                    menuWidth="min-w-[280px]"
+                  >
+                    {(close) => (
+                      <>
+                        {(kbOptions.data ?? []).map((kb) => {
+                          const checked = kbIds.includes(kb.id)
+                          return (
+                            <ChipOption
+                              key={kb.id}
+                              active={checked}
+                              onClick={() =>
+                                setKbIds((prev) =>
+                                  prev.includes(kb.id) ? prev.filter((x) => x !== kb.id) : [...prev, kb.id],
+                                )
+                              }
+                            >
+                              + {kb.name}
+                            </ChipOption>
+                          )
+                        })}
+                        {(kbOptions.data?.length ?? 0) === 0 && (
+                          <p className="px-3 py-2 text-[13px] text-ink-3">暂无可用知识库</p>
+                        )}
                         <button
-                          key={m.key}
                           type="button"
-                          className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-bg-hover"
+                          onClick={close}
+                          className="mt-1 w-full cursor-pointer border-0 border-t border-line bg-transparent px-3 py-2 text-center text-[13px] text-ink-3 hover:text-ink"
+                        >
+                          完成
+                        </button>
+                      </>
+                    )}
+                  </ChipSelect>
+                  <ChipSelect
+                    icon={<Sparkles className="size-[14px]" />}
+                    label={chosenModel?.name ?? '默认模型'}
+                    menuWidth="min-w-[220px]"
+                  >
+                    {(close) =>
+                      (chatModels.data ?? []).map((m) => (
+                        <ChipOption
+                          key={m.id}
+                          active={m.id === chatModelId}
                           onClick={() => {
-                            setMode(m.key)
-                            setModeOpen(false)
-                            focusComposer()
+                            setChatModelId(m.id)
+                            close()
                           }}
                         >
-                          <span className={cn('mt-0.5 flex-none', m.key === 'rag' ? 'text-accent' : 'text-info')}>
-                            {m.icon}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                              {m.label}
-                              {mode === m.key && <Check className="size-[13px] text-accent" />}
-                            </span>
-                            <span className="mt-0.5 block text-[11.5px] leading-relaxed text-ink-3">
-                              {m.desc}
-                            </span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className={chip}
-                onClick={() => pushToast('知识库选择开发中')}
-              >
-                <Library className="size-[14px]" />
-                产品手册知识库
-                <ChevronDown className="size-[13px] text-ink-3" />
-              </button>
-
-              <button
-                type="button"
-                className={iconBtn}
-                title="上传附件"
-                onClick={() => pushToast('附件上传开发中')}
-              >
-                <Paperclip className="size-4" />
-              </button>
-
-              <div className="ml-auto flex items-center gap-2.5">
-                <span className="text-[11px] text-ink-4">Enter 发送</span>
-                <button
-                  type="button"
-                  className={sendBtn}
-                  disabled={!draft.trim()}
-                  onClick={send}
-                >
-                  <Send className="size-[15px]" />
-                  发送
-                </button>
-              </div>
-            </div>
-          </div>
-          <p className="mt-2 text-center text-[11px] text-ink-4">
-            内容由 AI 生成，请核对引用来源后再采纳
-          </p>
-        </div>
+                          {m.name}
+                          {m.isDefault ? '（默认）' : ''}
+                        </ChipOption>
+                      ))
+                    }
+                  </ChipSelect>
+                </>
+              ) : (
+                <>
+                  <ChipSelect
+                    icon={<Server className="size-[14px]" />}
+                    label={chosenDatasource?.name ?? '选择数据源'}
+                    tone="info"
+                    menuWidth="min-w-[260px]"
+                  >
+                    {(close) =>
+                      (datasources.data?.records ?? []).map((d) => (
+                        <ChipOption
+                          key={d.id}
+                          active={d.id === datasourceId}
+                          onClick={() => {
+                            setDatasourceId(d.id)
+                            close()
+                          }}
+                        >
+                          {d.name}
+                        </ChipOption>
+                      ))
+                    }
+                  </ChipSelect>
+                  <ChipSelect
+                    icon={<BookMarked className="size-[14px]" />}
+                    label={metricKb ? metricKb.name : '口径库（可选）'}
+                    tone="info"
+                    menuWidth="min-w-[260px]"
+                  >
+                    {(close) => (
+                      <>
+                        <ChipOption
+                          active={metricKbId === undefined}
+                          onClick={() => {
+                            setMetricKbId(undefined)
+                            close()
+                          }}
+                        >
+                          不使用口径库
+                        </ChipOption>
+                        {(kbOptions.data ?? []).map((kb) => (
+                          <ChipOption
+                            key={kb.id}
+                            active={kb.id === metricKbId}
+                            onClick={() => {
+                              setMetricKbId(kb.id)
+                              close()
+                            }}
+                          >
+                            {kb.name}
+                          </ChipOption>
+                        ))}
+                      </>
+                    )}
+                  </ChipSelect>
+                </>
+              )}
+            </>
+          }
+          footer={
+            <p className="mt-2 text-center text-[12px] text-ink-4">
+              内容由 AI 生成，请核对引用来源后再采纳
+            </p>
+          }
+        />
       </Stagger>
     </div>
   )
@@ -265,12 +350,14 @@ function ModeCard({
   desc,
   active,
   onClick,
+  tone = 'accent',
 }: {
   icon: ReactNode
   title: string
   desc: string
   active: boolean
   onClick: () => void
+  tone?: 'accent' | 'info'
 }) {
   return (
     <button
@@ -279,36 +366,30 @@ function ModeCard({
       className={cn(
         'rounded-xl border bg-bg-card p-4 text-left transition-[border-color,box-shadow,transform] duration-200',
         'hover:-translate-y-px hover:shadow-[var(--shadow-pop)]',
-        active ? 'border-accent' : 'border-line-strong hover:border-accent-soft',
+        active
+          ? tone === 'info'
+            ? 'border-info'
+            : 'border-accent'
+          : 'border-line-strong hover:border-accent-soft',
       )}
     >
       <span
         className={cn(
           'mb-2 grid size-8 place-items-center rounded-lg',
-          active ? 'bg-accent-tint text-accent' : 'bg-bg-hover text-ink-2',
+          active ? (tone === 'info' ? 'bg-info-bg text-info' : 'bg-accent-tint text-accent') : 'bg-bg-hover text-ink-2',
         )}
       >
         {icon}
       </span>
-      <span className="block text-[13.5px] font-medium">{title}</span>
-      <span className="mt-1 block text-[12px] leading-relaxed text-ink-2">{desc}</span>
+      <span className="flex items-center gap-1.5 text-[14.5px] font-medium text-ink">
+        {title}
+        {active && <Check className="size-3.5 text-accent" />}
+      </span>
+      <span className="mt-1 block text-[13px] leading-relaxed text-ink-2">{desc}</span>
     </button>
   )
 }
 
-const chip =
-  'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-bg-card px-2.5 ' +
-  'text-[12.5px] text-ink-2 transition-colors hover:border-accent-soft hover:text-ink'
-
-const iconBtn =
-  'grid size-8 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-ink-3 transition-colors hover:bg-bg-hover hover:text-ink'
-
 const questionCard =
   'flex w-full cursor-pointer items-center gap-3 rounded-xl border border-line-strong bg-bg-card px-4 py-2.5 text-left ' +
   'transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-accent-soft hover:shadow-[var(--shadow-pop)]'
-
-const sendBtn =
-  'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-accent px-3.5 text-[13px] text-on-accent ' +
-  'transition-[background,transform,box-shadow] duration-200 ' +
-  'hover:-translate-y-px hover:bg-accent-deep hover:shadow-[0_6px_18px_rgba(62,79,42,.26)] ' +
-  'disabled:pointer-events-none disabled:opacity-50'

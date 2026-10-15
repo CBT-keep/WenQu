@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Flower2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const setSession = useAuthStore((s) => s.setSession)
 
   const [flipped, setFlipped] = useState(false)
@@ -68,6 +70,10 @@ export default function LoginPage() {
     try {
       const data = await login({ username: username.trim(), password })
       setSession(data)
+      // 预置门禁读的缓存，省掉一次 /auth/me 往返；也避免落地页短暂"不知道要不要改密"
+      if (data.user) {
+        queryClient.setQueryData(['me'], { ...data.user, mustChangePassword: data.mustChangePassword })
+      }
       // 先退场再换页：直接 navigate 是硬切，两屏之间空无一物，很生硬。
       // 这里刻意不复位 submitting —— 正在淡出，按钮不该闪回可点的状态。
       setLeaving(true)
@@ -92,7 +98,7 @@ export default function LoginPage() {
       {/* 页面级品牌：左上角 */}
       <div className="absolute top-0 left-0 flex items-center gap-2.5 p-[30px]">
         <BrandMark className="size-6 text-accent" />
-        <span className="text-[15.5px] font-medium tracking-[0.01em]">WenQu</span>
+        <span className="text-[16.5px] font-medium tracking-[0.01em]">WenQu</span>
       </div>
 
       {/*
@@ -125,7 +131,7 @@ export default function LoginPage() {
             >
               <div className="m-auto flex flex-col items-center px-10 pb-3.5 text-center">
                 <BrandMark className="size-[98px] text-accent" strokeWidth={1.4} />
-                <span className="mt-[22px] font-serif text-[42px] leading-none font-medium tracking-[0.01em]">
+                <span className="mt-[22px] font-serif text-[43px] leading-none font-medium tracking-[0.01em]">
                   Welcome
                 </span>
                 <button
@@ -188,11 +194,11 @@ export default function LoginPage() {
                       'absolute inset-0 flex flex-col justify-center [backface-visibility:hidden]',
                     )}
                   >
-                    <p className="mb-1 text-[12.5px] text-ink-3">欢迎回来</p>
-                    <h2 className="mb-7 text-[21px] font-medium">登录 WenQu 控制台</h2>
+                    <p className="mb-1 text-[13.5px] text-ink-3">欢迎回来</p>
+                    <h2 className="mb-7 text-[22px] font-medium">登录 WenQu 控制台</h2>
 
                     <div className="mb-4">
-                      <Label htmlFor="username" className="mb-1.5 block text-[12.5px] text-ink-2">
+                      <Label htmlFor="username" className="mb-1.5 block text-[13.5px] text-ink-2">
                         用户名
                       </Label>
                       <Input
@@ -201,12 +207,12 @@ export default function LoginPage() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         autoComplete="username"
-                        className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[14px] focus-visible:ring-accent/20"
+                        className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[15px] focus-visible:ring-accent/20"
                       />
                     </div>
 
                     <div className="mb-4">
-                      <Label htmlFor="password" className="mb-1.5 block text-[12.5px] text-ink-2">
+                      <Label htmlFor="password" className="mb-1.5 block text-[13.5px] text-ink-2">
                         密码
                       </Label>
                       <Input
@@ -215,12 +221,12 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete="current-password"
-                        className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[14px] focus-visible:ring-accent/20"
+                        className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[15px] focus-visible:ring-accent/20"
                       />
                     </div>
 
-                    <div className="my-1 mb-[22px] flex items-center justify-between text-[12.5px] text-ink-2">
-                      <Label className="cursor-pointer gap-2 text-[12.5px] font-normal">
+                    <div className="my-1 mb-[22px] flex items-center justify-between text-[13.5px] text-ink-2">
+                      <Label className="cursor-pointer gap-2 text-[13.5px] font-normal">
                         <Checkbox
                           checked={remember}
                           onCheckedChange={(v) => setRemember(!!v)}
@@ -243,7 +249,7 @@ export default function LoginPage() {
                     {error && (
                       <p
                         role="alert"
-                        className="mb-3 rounded-sm bg-danger-bg px-3 py-2 text-center text-[12.5px] text-danger"
+                        className="mb-3 rounded-sm bg-danger-bg px-3 py-2 text-center text-[13.5px] text-danger"
                       >
                         {error}
                       </p>
@@ -253,7 +259,7 @@ export default function LoginPage() {
                       {submitting ? '登录中…' : '登 录'}
                     </button>
 
-                    <p className="mt-4 text-center text-[12px] text-ink-3">
+                    <p className="mt-4 text-center text-[13px] text-ink-3">
                       账号由管理员创建，如需开通请联系系统管理员
                     </p>
                   </form>
@@ -274,10 +280,10 @@ export default function LoginPage() {
                       strokeWidth={1.4}
                       aria-hidden="true"
                     />
-                    <h2 className="mt-[26px] font-serif text-[34px] leading-none font-medium tracking-[0.01em]">
+                    <h2 className="mt-[26px] font-serif text-[35px] leading-none font-medium tracking-[0.01em]">
                       忘记密码
                     </h2>
-                    <p className="mt-[14px] text-[13px] text-ink-2">
+                    <p className="mt-[14px] text-[14px] text-ink-2">
                       账号由管理员创建，请联系管理员重置密码
                     </p>
                     <button
@@ -323,13 +329,13 @@ const faceBase =
  */
 const pillBtn =
   'inline-flex h-[46px] cursor-pointer items-center justify-center gap-2.5 rounded-pill border-0 ' +
-  'bg-accent px-[26px] text-[14px] text-on-accent ' +
+  'bg-accent px-[26px] text-[15px] text-on-accent ' +
   'transition-[background,transform,box-shadow] duration-200 ' +
   'hover:-translate-y-px hover:bg-accent-deep hover:shadow-[0_6px_18px_rgba(62,79,42,.26)]'
 
 /** 卡片内的主按钮：登录表单的提交键（表单要通栏，视觉重量比胶囊重一档） */
 const primaryBtn =
-  'h-[44px] w-full cursor-pointer rounded-pill border-0 bg-accent text-[14px] text-on-accent ' +
+  'h-[44px] w-full cursor-pointer rounded-pill border-0 bg-accent text-[15px] text-on-accent ' +
   'transition-[background,transform,box-shadow] duration-200 ' +
   'hover:-translate-y-px hover:bg-accent-deep hover:shadow-[0_6px_18px_rgba(62,79,42,.26)] ' +
   'disabled:pointer-events-none disabled:opacity-60'

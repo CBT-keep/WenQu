@@ -56,8 +56,20 @@ export function useTheme() {
       root.style.setProperty('--wipe-x', `${rect.left + rect.width / 2}px`)
       root.style.setProperty('--wipe-y', `${rect.top + rect.height / 2}px`)
       root.classList.add('theme-wipe')
+
+      // View Transition 被中止时（连续点击、页面不可见等）更新回调可能根本不执行，
+      // 那样主题就切不过去 —— 表现为"点了没反应"。补一次兜底。
+      let applied = false
+      const applyOnce = () => {
+        if (applied) return
+        applied = true
+        apply()
+      }
+
       try {
-        doc.startViewTransition(apply).finished.then(cleanup, cleanup)
+        const transition = doc.startViewTransition(applyOnce)
+        transition.finished.then(cleanup, cleanup)
+        window.setTimeout(applyOnce, 300)
         return
       } catch {
         cleanup()

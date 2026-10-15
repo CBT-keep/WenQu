@@ -20,7 +20,7 @@ import xyz.cbt.wenqu.backend.modules.user.vo.UserOptionVO;
 import java.util.List;
 
 /**
- * 用户管理 —— doc/04 §3.7-3.10。
+ * 用户管理
  * 类级限制 SUPERADMIN；仅 /options 放宽到 ADMIN（方法级覆盖类级）。
  */
 @RestController
@@ -40,7 +40,9 @@ public class UserController {
         return Result.ok(userService.page(keyword, role, status, page, size));
     }
 
-    /** 创建成功返回 201（doc/04 §1.4） */
+    /**
+     * 创建成功返回 201
+     */
     @PostMapping
     public ResponseEntity<Result<UserVO>> create(@Valid @RequestBody UserCreateDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(userService.create(dto)));
@@ -67,7 +69,9 @@ public class UserController {
         return Result.ok(userService.changeStatus(id, dto.getStatus()));
     }
 
-    /** 重置密码：body 可空（留空由服务端生成临时密码），新密码明文只返回这一次 */
+    /**
+     * 重置密码：body 可空（留空由服务端生成临时密码），新密码明文只返回这一次
+     */
     @PutMapping("/{id}/password")
     public Result<ResetPasswordVO> resetPassword(
             @PathVariable Long id,
@@ -75,7 +79,9 @@ public class UserController {
         return Result.ok(userService.resetPassword(id, dto == null ? null : dto.getNewPassword()));
     }
 
-    /** 供筛选下拉的精简列表：ADMIN 及以上可用（doc/04 §3.10，🛡️） */
+    /**
+     * 供筛选下拉的精简列表：ADMIN 及以上可用
+     */
     @GetMapping("/options")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public Result<List<UserOptionVO>> options() {

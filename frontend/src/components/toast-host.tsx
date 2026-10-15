@@ -9,7 +9,7 @@ export function ToastHost() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="toast-in rounded-pill border border-line-edge bg-float-bg px-4 py-2 text-[13px] text-ink shadow-[var(--shadow-pop)] backdrop-blur"
+          className="toast-in rounded-pill border border-line-edge bg-float-bg px-4 py-2 text-[14px] text-ink shadow-[var(--shadow-pop)] backdrop-blur"
         >
           {t.message}
         </div>

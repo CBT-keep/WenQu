@@ -1,12 +1,13 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronDown } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { ChevronDown, ChevronLeft } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BrandMark } from '@/components/brand-mark'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Typewriter } from '@/components/typewriter'
-import { changePassword, login } from '@/api/auth'
+import { changePassword, fetchMe, login } from '@/api/auth'
 import { toApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import { cn } from '@/lib/utils'
@@ -30,15 +31,25 @@ const GREETING_LINES = ['你好呀…新朋友？', '那么看起来，你需要
  * 第二句如果用小号的非衬线体，会读成"标题 + 注释"，不像一句接一句的对话。
  */
 const GREETING_STYLES = [
-  'font-serif text-[25px] leading-snug font-medium tracking-[0.01em]',
-  'mt-2.5 font-serif text-[16px] leading-relaxed text-ink-2',
+  'font-serif text-[26px] leading-snug font-medium tracking-[0.01em]',
+  'mt-2.5 font-serif text-[17px] leading-relaxed text-ink-2',
 ]
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const setSession = useAuthStore((s) => s.setSession)
   const clear = useAuthStore((s) => s.clear)
+  /**
+   * 是否处于"首登强制改密"。
+   * null = 尚未确定：硬刷新后 zustand 里没有会话信息，不能就此认定"不是强制"，
+   * 否则刷新一下就把门禁绕过去了 —— 所以这里问一次 /auth/me。
+   */
+  const [forced, setForced] = useState<boolean | null>(() =>
+    useAuthStore.getState().mustChangePassword ? true : null,
+  )
 
   // 只在首次登录演这段。读一次 store 即可，不用订阅 —— 它决定的是"开场"，之后不再变
   const [stage, setStage] = useState<'welcome' | 'form'>(() =>
@@ -51,6 +62,22 @@ export default function ChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 内存里已确定是强制就不必再问；否则用 /auth/me 校准，失败按"非强制"处理（软门禁，不阻塞用户）
+  useEffect(() => {
+    if (forced) return
+    let alive = true
+    fetchMe()
+      .then((me) => {
+        if (alive) setForced(!!me.mustChangePassword)
+      })
+      .catch(() => {
+        if (alive) setForced(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [forced])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -83,6 +110,13 @@ export default function ChangePasswordPage() {
       if (username) {
         const data = await login({ username, password: newPassword })
         setSession(data)
+        // 路由门禁读的是 ['me'] 这份缓存：必须同步成新状态，
+        // 否则会被判成"仍需改密"，刚改完就被弹回本页
+        if (data.user) {
+          queryClient.setQueryData(['me'], { ...data.user, mustChangePassword: data.mustChangePassword })
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['me'] })
+        }
         leaveTo('/chat')
         return
       }
@@ -100,6 +134,16 @@ export default function ChangePasswordPage() {
     window.setTimeout(() => navigate(path, { replace: true }), LEAVE_MS)
   }
 
+  /**
+   * 返回上一页。误触「修改密码」时得能退出去 —— 否则这里像个孤岛。
+   * 以 /change-password 作为首个页面直接打开时 history 里没有上一条，
+   * 此时回对话页兜底（location.key 为 'default' 即首条记录）。
+   */
+  function goBack() {
+    if (location.key && location.key !== 'default') navigate(-1)
+    else navigate('/chat', { replace: true })
+  }
+
   return (
     <div
       className={cn(
@@ -110,7 +154,7 @@ export default function ChangePasswordPage() {
     >
       <div className="absolute top-0 left-0 flex items-center gap-2.5 p-[30px]">
         <BrandMark className="size-6 text-accent" />
-        <span className="text-[15.5px] font-medium tracking-[0.01em]">WenQu</span>
+        <span className="text-[16.5px] font-medium tracking-[0.01em]">WenQu</span>
       </div>
 
       <div
@@ -123,6 +167,18 @@ export default function ChangePasswordPage() {
           leaving && 'scale-[1.04]',
         )}
       >
+        {/* 主动改密才给退路；首登强制改密那一次不出现（那是门禁，不是入口）。forced 未确定时先不显示，避免闪一下又消失 */}
+        {forced === false && !leaving && (
+          <button
+            type="button"
+            onClick={goBack}
+            className="mb-5 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-[14px] text-ink-2 transition-colors hover:text-ink"
+          >
+            <ChevronLeft className="size-4" />
+            返回
+          </button>
+        )}
+
         {/*
           两个阶段叠在同一格：卡片外壳（边框、投影、尺寸）自始至终不动，
           变的只是里面的内容 —— 打招呼往上让位，表单从下方接上来。
@@ -166,16 +222,16 @@ export default function ChangePasswordPage() {
               stage === 'form' ? stageShown : stageOutDown,
             )}
           >
-            <p className="mb-1 text-[12.5px] text-ink-3">账号安全</p>
-            <h2 className="mb-2 text-[21px] font-medium">修改密码</h2>
-            <p className="mb-7 text-[13px] leading-relaxed text-ink-2">
+            <p className="mb-1 text-[13.5px] text-ink-3">账号安全</p>
+            <h2 className="mb-2 text-[22px] font-medium">修改密码</h2>
+            <p className="mb-7 text-[14px] leading-relaxed text-ink-2">
               {user?.mustChangePassword
                 ? '当前使用的是初始密码，请修改后再继续使用。'
                 : '修改成功后，其他设备的登录状态会同时失效。'}
             </p>
 
             <div className="mb-4">
-              <Label htmlFor="oldPassword" className="mb-1.5 block text-[12.5px] text-ink-2">
+              <Label htmlFor="oldPassword" className="mb-1.5 block text-[13.5px] text-ink-2">
                 原密码
               </Label>
               <Input
@@ -184,12 +240,12 @@ export default function ChangePasswordPage() {
                 value={oldPassword}
                 onChange={(e) => setOldPassword(e.target.value)}
                 autoComplete="current-password"
-                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[14px] focus-visible:ring-accent/20"
+                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[15px] focus-visible:ring-accent/20"
               />
             </div>
 
             <div className="mb-4">
-              <Label htmlFor="newPassword" className="mb-1.5 block text-[12.5px] text-ink-2">
+              <Label htmlFor="newPassword" className="mb-1.5 block text-[13.5px] text-ink-2">
                 新密码
               </Label>
               <Input
@@ -198,12 +254,12 @@ export default function ChangePasswordPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
-                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[14px] focus-visible:ring-accent/20"
+                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[15px] focus-visible:ring-accent/20"
               />
             </div>
 
             <div className="mb-5">
-              <Label htmlFor="confirmPassword" className="mb-1.5 block text-[12.5px] text-ink-2">
+              <Label htmlFor="confirmPassword" className="mb-1.5 block text-[13.5px] text-ink-2">
                 确认新密码
               </Label>
               <Input
@@ -212,14 +268,14 @@ export default function ChangePasswordPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
-                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[14px] focus-visible:ring-accent/20"
+                className="h-[38px] rounded-sm border-line-strong bg-bg-card px-3 text-[15px] focus-visible:ring-accent/20"
               />
             </div>
 
             {error && (
               <p
                 role="alert"
-                className="mb-3 rounded-sm bg-danger-bg px-3 py-2 text-center text-[12.5px] text-danger"
+                className="mb-3 rounded-sm bg-danger-bg px-3 py-2 text-center text-[13.5px] text-danger"
               >
                 {error}
               </p>
@@ -228,7 +284,7 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="h-[44px] w-full cursor-pointer rounded-pill border-0 bg-accent text-[14px] text-on-accent transition-[background,transform,box-shadow] duration-200 hover:-translate-y-px hover:bg-accent-deep hover:shadow-[0_6px_18px_rgba(62,79,42,.26)] disabled:pointer-events-none disabled:opacity-60"
+              className="h-[44px] w-full cursor-pointer rounded-pill border-0 bg-accent text-[15px] text-on-accent transition-[background,transform,box-shadow] duration-200 hover:-translate-y-px hover:bg-accent-deep hover:shadow-[0_6px_18px_rgba(62,79,42,.26)] disabled:pointer-events-none disabled:opacity-60"
             >
               {submitting ? '提交中…' : '确认修改'}
             </button>

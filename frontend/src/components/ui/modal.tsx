@@ -45,7 +45,7 @@ export function Modal({
         )}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[15px] font-medium">{title}</h3>
+          <h3 className="text-[16px] font-medium">{title}</h3>
           <button
             type="button"
             className="grid size-7 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-ink-3 transition-colors hover:bg-bg-hover hover:text-ink"
@@ -104,16 +104,16 @@ export function ConfirmModal({
         </>
       }
     >
-      <div className="text-[13px] leading-relaxed text-ink-2">{description}</div>
+      <div className="text-[14px] leading-relaxed text-ink-2">{description}</div>
     </Modal>
   )
 }
 
 const ghostBtn =
-  'h-9 cursor-pointer rounded-md border border-line-strong bg-bg-card px-4 text-[13px] text-ink-2 transition-colors hover:border-accent-soft hover:text-ink'
+  'h-9 cursor-pointer rounded-md border border-line-strong bg-bg-card px-4 text-[14px] text-ink-2 transition-colors hover:border-accent-soft hover:text-ink'
 
 const primaryBtn =
-  'h-9 cursor-pointer rounded-md border-0 bg-accent px-4 text-[13px] text-on-accent transition-colors hover:bg-accent-deep disabled:pointer-events-none disabled:opacity-60'
+  'h-9 cursor-pointer rounded-md border-0 bg-accent px-4 text-[14px] text-on-accent transition-colors hover:bg-accent-deep disabled:pointer-events-none disabled:opacity-60'
 
 const dangerBtn =
-  'h-9 cursor-pointer rounded-md border-0 bg-danger px-4 text-[13px] text-white transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-60'
+  'h-9 cursor-pointer rounded-md border-0 bg-danger px-4 text-[14px] text-white transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-60'

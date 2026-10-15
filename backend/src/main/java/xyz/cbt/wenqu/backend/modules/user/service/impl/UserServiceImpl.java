@@ -177,7 +177,9 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /** doc/04 §3.8：8-64 位，且需同时包含字母与数字 */
+    /**
+     * 8-64 位，且需同时包含字母与数字
+     */
     private void validatePassword(String raw) {
         boolean hasLetter = raw.chars().anyMatch(Character::isLetter);
         boolean hasDigit = raw.chars().anyMatch(Character::isDigit);
@@ -186,7 +188,9 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /** 10 位随机临时密码：字母 + 数字，避开易混淆字符 */
+    /**
+     * 10 位随机临时密码：字母 + 数字，避开易混淆字符
+     */
     private String generateTempPassword() {
         String letters = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";
         String digits = "23456789";
@@ -209,7 +213,9 @@ public class UserServiceImpl implements UserService {
         return null;
     }
 
-    /** 审计落库；失败只记日志，绝不拖垮主流程 */
+    /**
+     * 审计落库；失败只记日志，绝不拖垮主流程
+     */
     private void audit(String action, String target, String detail) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();

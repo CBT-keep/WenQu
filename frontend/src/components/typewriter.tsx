@@ -65,7 +65,7 @@ export function Typewriter({
         <div
           aria-hidden="true"
           className={cn(
-            'mt-6 flex h-5 items-center gap-1.5 text-[12px] text-ink-4',
+            'mt-6 flex h-5 items-center gap-1.5 text-[13px] text-ink-4',
             'transition-opacity duration-[320ms]',
             waiting ? 'opacity-100' : 'opacity-0',
           )}
