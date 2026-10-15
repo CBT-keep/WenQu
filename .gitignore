@@ -7,6 +7,13 @@
 #   git rm -r --cached .workbuddy
 .workbuddy/
 
+# IDE 配置（IntelliJ IDEA / WebStorm 等 JetBrains 系）
+# 各人 IDE 版本、插件、本地数据源配置不同，入库只会互相污染、制造冲突
+.idea/
+*.iml
+*.ipr
+*.iws
+
 # 前端
 frontend/node_modules/
 frontend/dist/

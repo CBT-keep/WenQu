@@ -298,10 +298,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+/* 注：键盘聚焦指示 (:focus-visible) 已并入文末 @layer base ——
+   写在层外会以最高优先级压过组件级 outline-none，别挪回去。 */
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -326,6 +324,101 @@ body {
   background-image: radial-gradient(var(--bg-dot) 1.1px, transparent 1.1px);
   background-size: 24px 24px;
   background-position: 0 0;
+}
+
+/* ============================================================
+   路由进场
+   整页淡入 + 上浮。用 animation 而非 transition：
+   挂载那一帧改属性很容易被并成一帧，过渡就不触发了。
+   ============================================================ */
+@utility page-enter {
+  animation: page-enter 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 内容分组入场：同一根曲线同一时长，靠 animation-delay 错开（见 <Stagger>） */
+@utility stagger-in {
+  animation: page-enter 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 轻提示入场：从下方浮起，比页面进场更短促 */
+@utility toast-in {
+  animation: toast-in 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 模态框：面板轻微上浮 + 归位，遮罩只淡不挪 */
+@utility modal-in {
+  animation: modal-in 0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@utility modal-fade {
+  animation: modal-fade 0.2s ease both;
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 打字机行尾光标：硬切明灭，不用 pulse 那种呼吸感 */
+@utility caret-blink {
+  animation: caret-blink 1.05s steps(1, end) infinite;
+}
+@keyframes caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 「轻点继续」的指示箭头：轻微上下浮动，把"这里能点"说出来。
+   幅度刻意只有 3px —— 是提示，不是招手。 */
+@utility hint-bob {
+  animation: hint-bob 1.7s ease-in-out infinite;
+}
+@keyframes hint-bob {
+  0%,
+  100% {
+    transform: translateY(-1px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
 }
 
 /* ============================================================
@@ -393,5 +486,17 @@ html.theme-wipe::view-transition-new(root) {
   }
   html {
     @apply font-sans;
+  }
+
+  /**
+   * 键盘聚焦的默认指示。
+   * ⚠️ 必须放在 @layer base 里：这条规则若写在层外，会以"未分层 CSS
+   * 优先级最高"压过所有组件级写法（outline-none / ring-*），导致输入框
+   * 聚焦时浮出一圈生硬的绿色双线框。放进 base 层后，utilities 层
+   * 的 outline-none 就能正常盖掉它，组件改用柔和的 ring 表达聚焦。
+   */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 }

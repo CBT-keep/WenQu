@@ -9,6 +9,11 @@ export interface UserInfo {
   nickname: string
   role: UserRole
   status: UserStatus
+  email?: string | null
+  /** /auth/me 会返回；登录接口不带 */
+  mustChangePassword?: boolean
+  lastLoginAt?: string | null
+  createdAt?: string | null
 }
 
 export interface LoginRequest {
@@ -18,6 +23,12 @@ export interface LoginRequest {
 
 export interface RefreshRequest {
   refreshToken: string
+}
+
+/** PUT /auth/me/password —— doc/04 §3.6 */
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
 }
 
 export interface TokenData {

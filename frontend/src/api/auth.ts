@@ -1,43 +1,16 @@
-import { ApiError, http, unwrap } from '@/lib/http'
+import { http, unwrap } from '@/lib/http'
 import type { ApiResponse } from '@/types/api'
-import type { LoginRequest, RefreshRequest, TokenData, UserInfo } from '@/types/auth'
-
-/**
- * 后端尚未就绪时（backend/src 里还没有 Auth 相关类），
- * 用 VITE_USE_MOCK=1 让登录页能独立联调：admin / admin@123 通过，其余报 20001。
- */
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
-
-const MOCK_USER: UserInfo = {
-  id: 1,
-  username: 'admin',
-  nickname: '系统管理员',
-  role: 'SUPERADMIN',
-  status: 'ENABLED',
-}
-
-function mockLogin(payload: LoginRequest): Promise<TokenData> {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (payload.username === 'admin' && payload.password === 'admin@123') {
-        resolve({
-          tokenType: 'Bearer',
-          accessToken: 'mock-access-token',
-          refreshToken: 'mock-refresh-token',
-          expiresIn: 7200,
-          mustChangePassword: false,
-          user: MOCK_USER,
-        })
-      } else {
-        reject(new ApiError(20001, '用户名或密码错误'))
-      }
-    }, 600)
-  })
-}
+import type {
+  ChangePasswordRequest,
+  LoginRequest,
+  RefreshRequest,
+  TokenData,
+  UserInfo,
+} from '@/types/auth'
+import { tokenStorage } from '@/lib/token'
 
 /** POST /auth/login —— doc/04 §3.1 */
 export function login(payload: LoginRequest): Promise<TokenData> {
-  if (USE_MOCK) return mockLogin(payload)
   return unwrap(http.post<ApiResponse<TokenData>>('/auth/login', payload))
 }
 
@@ -46,16 +19,26 @@ export function refresh(payload: RefreshRequest): Promise<TokenData> {
   return unwrap(http.post<ApiResponse<TokenData>>('/auth/refresh', payload))
 }
 
-/** POST /auth/logout —— doc/04 §3.3 */
+/**
+ * POST /auth/logout —— doc/04 §3.3
+ * 带上 refreshToken 后端只吊销这一个；不带则吊销该用户全部令牌。
+ */
 export async function logout(): Promise<void> {
-  if (USE_MOCK) return
-  await unwrap(http.post<ApiResponse<null>>('/auth/logout'))
+  const refreshToken = tokenStorage.getRefreshToken()
+  try {
+    await unwrap(http.post<ApiResponse<null>>('/auth/logout', refreshToken ? { refreshToken } : {}))
+  } finally {
+    // 后端调用失败也要清本地，不能把用户卡在"已登出但还有 token"的状态
+    tokenStorage.clear()
+  }
 }
 
 /** GET /auth/me —— doc/04 §3.4 */
 export function fetchMe(): Promise<UserInfo> {
-  if (USE_MOCK) return Promise.resolve(MOCK_USER)
   return unwrap(http.get<ApiResponse<UserInfo>>('/auth/me'))
 }
 
-export const isMockMode = USE_MOCK
+/** PUT /auth/me/password —— doc/04 §3.6，改密成功后后端会吊销全部 refresh token */
+export function changePassword(payload: ChangePasswordRequest): Promise<null> {
+  return unwrap(http.put<ApiResponse<null>>('/auth/me/password', payload))
+}
