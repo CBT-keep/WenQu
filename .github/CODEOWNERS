@@ -1,0 +1,13 @@
+# CODEOWNERS —— 指定各目录的默认审查者
+# 语法：路径模式 + @用户名（或 @组织/团队名）
+# 效果：命中这些文件的 PR，必须由对应 owner 审查通过才能合并
+# 注意：用户名必须是真实 GitHub 用户名，且需在本仓库有 write 权限
+
+# 兜底：所有文件默认由项目负责人审查
+*                   @CBT-keep
+
+# 按模块细分（人数变多后在这里拆）
+/backend/           @CBT-keep
+/frontend/          @CBT-keep
+/scripts/           @CBT-keep
+/docker-compose.yml @CBT-keep

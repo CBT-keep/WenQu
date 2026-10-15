@@ -1,0 +1,397 @@
+@import 'tailwindcss';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   WenQu 设计令牌 v3 · 暖白 / 暖黑 双主题
+   来源：doc/prototype/wenqu-style-preview.html（已与需求方确认）
+   ------------------------------------------------------------
+   浅色：暖白 #FCFAF8 底 + 暖黑 #14120B 字 + 暖橄榄 #526E3E
+   暗色：低饱和暖灰底（不是棕！）+ 提亮橄榄 #98C082
+   ============================================================ */
+:root {
+  color-scheme: light;
+
+  /* 暖中性底 */
+  --bg: #fcfaf8;
+  --bg-sidebar: #f8f4ef;
+  --bg-card: #ffffff;
+  --bg-hover: #f2ece3;
+  --bg-active: #e8e0d3;
+  --bg-section: #f0ebe5;
+  --bg-dot: #e4dcd0;
+
+  /* 描边 */
+  --line: #f0ebe5;
+  --line-strong: #e6dfd5;
+  --line-edge: #d5c9b3;
+
+  /* 文字 */
+  --ink: #14120b;
+  --ink-2: #6b6558;
+  --ink-3: #9c9588;
+  --ink-4: #bdb5a6;
+
+  /* 强调：暖橄榄单色（控件上唯一的彩色） */
+  --accent: #526e3e;
+  --accent-deep: #3e4f2a;
+  --accent-soft: #7b955f;
+  --accent-tint: rgba(82, 110, 62, 0.1);
+  --accent-tint-2: rgba(82, 110, 62, 0.18);
+
+  /* 语义色（同步暖化） */
+  --ok: #4f7a3b;
+  --ok-bg: #edf1e5;
+  --warn: #96681b;
+  --warn-bg: #f7eedc;
+  --danger: #a8402c;
+  --danger-bg: #f8e9e5;
+  --info: #3f6b78;
+  --info-bg: #e9f0f1;
+
+  /* 无法直接用变量、需随主题切换的散值 */
+  --on-accent: #ffffff;
+  --dot-olive: rgba(62, 79, 42, 0.14);
+  --bar-bg: rgba(252, 250, 248, 0.86);
+  --float-bg: rgba(255, 255, 255, 0.86);
+  --face-inner: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --scroll-thumb: #ded6c9;
+  --scroll-thumb-h: #cfc6b6;
+
+  /* 圆角 */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* 字体 */
+  --font-sans: 'PingFang SC', 'MiSans', 'HarmonyOS Sans SC', 'Noto Sans SC',
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'LXGW WenKai TC', 'LXGW WenKai', 'Songti SC', 'STSong',
+    'Noto Serif SC', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --shadow-card: 0 1px 1px rgba(20, 18, 11, 0.05), 0 3px 6px -1px rgba(20, 18, 11, 0.07),
+    0 14px 30px -10px rgba(20, 18, 11, 0.14), 0 34px 66px -32px rgba(20, 18, 11, 0.22);
+  --shadow-pop: 0 2px 6px rgba(20, 18, 11, 0.05), 0 18px 40px -20px rgba(20, 18, 11, 0.18);
+  /* ---- shadcn 语义变量 → WenQu 令牌 ----
+     不桥接的话，shadcn 组件会渲染成中性黑白，而不是我们的暖橄榄。
+     这里全是 var→var 引用，所以一套声明明暗通用：
+     :root[data-theme=dark] 改的是 --bg / --ink / --accent，桥接自动跟随。*/
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--bg-card);
+  --card-foreground: var(--ink);
+  --popover: var(--bg-card);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--bg-section);
+  --secondary-foreground: var(--ink);
+  --muted: var(--bg-hover);
+  --muted-foreground: var(--ink-2);
+  --accent-foreground: var(--accent-deep);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--accent);
+  --chart-1: var(--accent);
+  --chart-2: var(--accent-soft);
+  --chart-3: var(--ok);
+  --chart-4: var(--warn);
+  --chart-5: var(--danger);
+  --sidebar: var(--bg-sidebar);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-accent: var(--bg-hover);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
+}
+
+/* ============================================================
+   暗色模式
+   ⚠️ 别把浅色的 --ink #14120B 拿来当暗色底色：它是 rgb(20,18,11)，
+   饱和度 45%，是棕色不是黑。铺满整屏会发"枯黄"。
+   暗色中性色一律压到 8–15% 饱和度；暖意交给橄榄与米白文字。
+   ============================================================ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #121110;
+  --bg-sidebar: #181716;
+  --bg-card: #201f1d;
+  --bg-hover: #292725;
+  --bg-active: #332f2b;
+  --bg-section: #262421;
+  --bg-dot: #35322c;
+
+  --line: #262421;
+  --line-strong: #36332d;
+  --line-edge: #4a463e;
+
+  --ink: #f2efe9;
+  --ink-2: #a9a49b;
+  --ink-3: #8b867d;
+  --ink-4: #68635b;
+
+  --accent: #98c082;
+  --accent-deep: #bcd9a4;
+  --accent-soft: #7d9a68;
+  --accent-tint: rgba(152, 192, 130, 0.14);
+  --accent-tint-2: rgba(152, 192, 130, 0.24);
+
+  --ok: #96bc72;
+  --ok-bg: rgba(150, 188, 114, 0.14);
+  --warn: #dca84a;
+  --warn-bg: rgba(220, 168, 74, 0.14);
+  --danger: #e07760;
+  --danger-bg: rgba(224, 119, 96, 0.14);
+  --info: #84aebb;
+  --info-bg: rgba(132, 174, 187, 0.14);
+
+  --on-accent: #14120b;
+  --dot-olive: rgba(178, 206, 150, 0.17);
+  --bar-bg: rgba(18, 17, 16, 0.78);
+  --float-bg: rgba(32, 31, 29, 0.86);
+  --face-inner: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --scroll-thumb: #35322c;
+  --scroll-thumb-h: #454036;
+
+  /* 暗底上投影几乎不可见，卡片分离靠"比页面亮一档 + 外沿描边" */
+  --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.34), 0 14px 30px -10px rgba(0, 0, 0, 0.46),
+    0 34px 66px -32px rgba(0, 0, 0, 0.56);
+  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.4), 0 18px 40px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* 把令牌映射成 Tailwind 工具类。
+   用 @theme inline（而非 @theme）：前者生成的工具类保留 var() 引用，
+   主题切换时能在运行时重解析；后者会把色值烘焙进产物，切不动。 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-bg-section: var(--bg-section);
+  --color-bg-dot: var(--bg-dot);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-edge: var(--line-edge);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r);
+
+  --radius-lg: var(--r-md);
+  --radius-xl: var(--r-lg);
+  --radius-2xl: var(--r-xl);
+  --radius-pill: var(--r-pill);
+
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* shadcn 组件大量使用 dark: 变体，而 Tailwind v4 默认绑定
+   prefers-color-scheme。我们用的是 <html data-theme="dark">，
+   必须重定义，否则暗色下这些类全部失效。 */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* 补几个 @theme 里漏掉的映射 */
+@theme inline {
+  --color-float-bg: var(--float-bg);
+  --color-bar-bg: var(--bar-bg);
+  --color-dot-olive: var(--dot-olive);
+}
+
+/* 卡片正面的内嵌点阵（点色随主题的 --dot-olive） */
+@utility face-dots {
+  background-image: radial-gradient(var(--dot-olive) 1.1px, transparent 1.1px);
+  background-size: 19px 19px;
+}
+
+/* ============================================================
+   基础
+   ============================================================ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* 底色要同时挂在 html 上：body 的背景会被"传播"给画布（canvas background），
+   被传播出去的那份不参与 transition —— 只写 body 会导致换肤时大底色跳变。 */
+html {
+  background-color: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-h);
+}
+
+/* ============================================================
+   点阵背景
+   ============================================================ */
+@utility dot-bg {
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1.1px, transparent 1.1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+/* ============================================================
+   换肤过渡
+   ① Chromium 系：View Transitions 圆形揭示，从被点的按钮扩散开
+   ② 其他浏览器：切换瞬间临时挂 .theme-anim，跑一帧全站色彩过渡
+   两条都只在切换那一瞬间生效，不长期挂 transition，免得拖慢日常交互。
+   ============================================================ */
+.theme-anim,
+.theme-anim *,
+.theme-anim *::before,
+.theme-anim *::after {
+  transition:
+    background-color 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    fill 0.55s ease,
+    stroke 0.55s ease,
+    box-shadow 0.55s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+/* 保住滑块自身动画，别被上面的全局过渡整条吃掉 */
+.theme-anim .tt-knob {
+  transition:
+    transform 0.42s cubic-bezier(0.62, 0.04, 0.2, 1),
+    background-color 0.55s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+html.theme-wipe::view-transition-old(root),
+html.theme-wipe::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.theme-wipe::view-transition-old(root) {
+  z-index: 1;
+}
+html.theme-wipe::view-transition-new(root) {
+  z-index: 2;
+  animation: theme-reveal 0.66s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0px at var(--wipe-x, 100%) var(--wipe-y, 100%));
+  }
+  to {
+    clip-path: circle(150% at var(--wipe-x, 100%) var(--wipe-y, 100%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
