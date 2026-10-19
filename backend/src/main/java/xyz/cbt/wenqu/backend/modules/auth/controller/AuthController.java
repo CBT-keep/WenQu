@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.cbt.wenqu.backend.common.BizException;
 import xyz.cbt.wenqu.backend.common.Result;
+import xyz.cbt.wenqu.backend.common.log.OpLog;
 import xyz.cbt.wenqu.backend.modules.auth.dto.ChangePasswordDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.LoginDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.RefreshDTO;
@@ -33,6 +34,7 @@ public class AuthController {
     /**
      * 登录
      */
+    @OpLog(type = "Login", action = "登录")
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginDTO dto, HttpServletRequest request) {
         return Result.ok(authService.login(dto, clientIp(request), request.getHeader("User-Agent")));
@@ -41,6 +43,7 @@ public class AuthController {
     /**
      * 刷新令牌
      */
+    @OpLog(type = "Refresh", action = "刷新令牌")
     @PostMapping("/refresh")
     public Result<LoginVO> refresh(@Valid @RequestBody RefreshDTO dto) {
         return Result.ok(authService.refresh(dto.getRefreshToken()));
@@ -49,6 +52,7 @@ public class AuthController {
     /**
      * 登出同时吊销refreshToken
      */
+    @OpLog(type = "Logout", action = "登出")
     @PostMapping("/logout")
     public Result<Void> logout(Authentication authentication,
                                @RequestBody(required = false) RefreshDTO dto) {
@@ -58,7 +62,8 @@ public class AuthController {
 
     /**
      * 当前用户信息
-     */
+     * */
+    @OpLog(type = "Get", action = "获取当前用户信息")
     @GetMapping("/me")
     public Result<UserVO> me(Authentication authentication) {
         return Result.ok(authService.me(currentUserId(authentication)));
@@ -67,6 +72,7 @@ public class AuthController {
     /**
      * 修改本人密码
      */
+    @OpLog(type = "Update", action = "修改本人密码")
     @PutMapping("/me/password")
     public Result<Void> changePassword(Authentication authentication,
                                        @Valid @RequestBody ChangePasswordDTO dto) {

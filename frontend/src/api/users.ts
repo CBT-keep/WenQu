@@ -14,10 +14,19 @@ export interface UsersQuery {
 
 export interface CreateUserPayload {
   username: string
-  password: string
+  /** 初始密码（选填）：留空则由服务端生成随机临时密码，明文只在创建结果里返回一次 */
+  password?: string
+  /** 首次登录强制改密：留空密码时恒为 true；指定密码时默认 false，可显式开启 */
+  mustChangePassword?: boolean
   nickname?: string
   email?: string
   role: string
+}
+
+/** 创建结果：tempPassword 仅在未指定密码（随机生成）时非空，明文只此一次 */
+export interface CreateUserResult {
+  user: UserInfo
+  tempPassword: string | null
 }
 
 export interface UpdateUserPayload {
@@ -38,7 +47,7 @@ export function fetchUsers(params: UsersQuery) {
 }
 
 export function createUser(payload: CreateUserPayload) {
-  return unwrap(http.post<ApiResponse<UserInfo>>('/users', payload))
+  return unwrap(http.post<ApiResponse<CreateUserResult>>('/users', payload))
 }
 
 export function updateUser(id: number, payload: UpdateUserPayload) {

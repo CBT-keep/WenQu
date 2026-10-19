@@ -20,6 +20,7 @@ import xyz.cbt.wenqu.backend.modules.user.dto.UserUpdateDTO;
 import xyz.cbt.wenqu.backend.modules.user.mapper.UserManageMapper;
 import xyz.cbt.wenqu.backend.modules.user.service.UserService;
 import xyz.cbt.wenqu.backend.modules.user.vo.ResetPasswordVO;
+import xyz.cbt.wenqu.backend.modules.user.vo.UserCreateVO;
 import xyz.cbt.wenqu.backend.modules.user.vo.UserOptionVO;
 
 import java.security.SecureRandom;
@@ -27,6 +28,9 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 用户管理服务实现类
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -54,22 +58,32 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserVO create(UserCreateDTO dto) {
+    public UserCreateVO create(UserCreateDTO dto) {
+        // 超管唯一且不可创建
+        if ("SUPERADMIN".equals(dto.getRole())) {
+            throw BizException.badRequest("超级管理员账号不可创建，角色仅支持 USER 或 ADMIN");
+        }
         userManageMapper.findByUsername(dto.getUsername())
                 .ifPresent(u -> {
                     throw BizException.usernameTaken();
                 });
-        validatePassword(dto.getPassword());
+
+        // 初始密码：留空 → 随机临时密码（明文只返回一次）并强制首登改密；指定 → 默认不强制（可显式开启）
+        boolean passwordProvided = dto.getPassword() != null && !dto.getPassword().isBlank();
+        String plain = passwordProvided ? dto.getPassword() : generateTempPassword();
+        if (passwordProvided) {
+            validatePassword(plain);
+        }
+        boolean mustChange = !passwordProvided || Boolean.TRUE.equals(dto.getMustChangePassword());
 
         SysUser user = new SysUser();
         user.setUsername(dto.getUsername());
-        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        user.setPasswordHash(passwordEncoder.encode(plain));
         user.setNickname(dto.getNickname());
         user.setEmail(dto.getEmail());
         user.setRole(dto.getRole());
         user.setStatus(dto.getStatus() != null ? dto.getStatus() : "ENABLED");
-        // 管理员建号 → 首次登录强制改密（与种子 admin 一致）
-        user.setMustChangePassword(true);
+        user.setMustChangePassword(mustChange);
         user.setCreatedBy(currentUserId());
         // NOT NULL DEFAULT now() 的列必须显式赋值（Spring Data JDBC 会把 null 写进 INSERT 顶掉默认值）
         user.setCreatedAt(OffsetDateTime.now());
@@ -77,7 +91,7 @@ public class UserServiceImpl implements UserService {
 
         SysUser saved = userManageMapper.save(user);
         audit("USER_CREATE", saved.getUsername(), "创建用户，角色 " + saved.getRole());
-        return UserVO.from(saved);
+        return new UserCreateVO(UserVO.from(saved), passwordProvided ? null : plain);
     }
 
     @Override
@@ -98,13 +112,19 @@ public class UserServiceImpl implements UserService {
             user.setEmail(dto.getEmail());
         }
         if (dto.getRole() != null && !dto.getRole().equals(user.getRole())) {
-            // 防自锁：把自己降级成非 SUPERADMIN 会立刻失去用户管理入口
-            if (id.equals(currentUserId()) && !"SUPERADMIN".equals(dto.getRole())) {
+            // 超管唯一且不可晋升：角色只允许 USER / ADMIN
+            if ("SUPERADMIN".equals(dto.getRole())) {
+                throw BizException.badRequest("超级管理员账号不可创建，角色仅支持 USER 或 ADMIN");
+            }
+            // 防自锁：自己的角色不可变更（既不能降级，也不能以任何方式变更）
+            if (id.equals(currentUserId())) {
                 throw BizException.badRequest("不能变更自己的角色");
             }
             user.setRole(dto.getRole());
         }
         if (dto.getStatus() != null && !dto.getStatus().equals(user.getStatus())) {
+            // 与 changeStatus 同一套自锁保护，防止从编辑接口绕过
+            assertNotSelfDisabled(id, dto.getStatus());
             applyStatus(user, dto.getStatus());
         }
         user.setUpdatedAt(OffsetDateTime.now());
@@ -128,9 +148,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserVO changeStatus(Long id, String status) {
-        if (id.equals(currentUserId()) && "DISABLED".equals(status)) {
-            throw BizException.badRequest("不能禁用自己的账号");
-        }
+        assertNotSelfDisabled(id, status);
         SysUser user = userManageMapper.findById(id).orElseThrow(BizException::userNotFound);
         applyStatus(user, status);
         user.setUpdatedAt(OffsetDateTime.now());
@@ -143,7 +161,13 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public ResetPasswordVO resetPassword(Long id, String newPassword) {
+        if (id.equals(currentUserId())) {
+            throw BizException.badRequest("不能重置自己的密码，请在「修改密码」中自行修改");
+        }
         SysUser user = userManageMapper.findById(id).orElseThrow(BizException::userNotFound);
+        if ("SUPERADMIN".equals(user.getRole())) {
+            throw BizException.badRequest("超级管理员密码不可重置，请其本人在「修改密码」中修改");
+        }
         String plain = (newPassword == null || newPassword.isBlank())
                 ? generateTempPassword()
                 : newPassword;
@@ -168,7 +192,14 @@ public class UserServiceImpl implements UserService {
         return out;
     }
 
-    // ------------------------------------------------------------ 内部方法
+    /**
+     * 自锁保护：不能禁用自己的账号，防止误操作
+     */
+    private void assertNotSelfDisabled(Long id, String status) {
+        if ("DISABLED".equals(status) && id.equals(currentUserId())) {
+            throw BizException.badRequest("不能禁用自己的账号");
+        }
+    }
 
     private void applyStatus(SysUser user, String status) {
         user.setStatus(status);
@@ -178,9 +209,12 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 8-64 位，且需同时包含字母与数字
+     * 8-64 位，且需同时包含字母与数字（留空不校验，由调用方决定是否随机生成）
      */
     private void validatePassword(String raw) {
+        if (raw.length() < 8 || raw.length() > 64) {
+            throw BizException.badRequest("密码长度需为 8-64 位");
+        }
         boolean hasLetter = raw.chars().anyMatch(Character::isLetter);
         boolean hasDigit = raw.chars().anyMatch(Character::isDigit);
         if (!hasLetter || !hasDigit) {

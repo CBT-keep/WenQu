@@ -32,3 +32,5 @@ server:
 logging:
   level:
     org.flywaydb: INFO
+  pattern:
+    level: "%5p [%X{traceId:-}]"

@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select'
 import { Alert, ErrorBlock, LoadingBlock } from '@/components/ui/feedback'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { Pagination } from '@/components/ui/pagination'
+import { Switch } from '@/components/ui/switch'
 import {
   changeUserStatus,
   createUser,
@@ -15,6 +16,7 @@ import {
   fetchUsers,
   resetUserPassword,
   updateUser,
+  type CreateUserResult,
   type ResetPasswordResult,
   type UsersQuery,
 } from '@/api/users'
@@ -23,12 +25,14 @@ import { formatDateTime } from '@/lib/format'
 import { ROLE, USER_STATUS } from '@/lib/status'
 import { btnGhost, btnPrimary, inputCls, rowBtn, rowBtnDanger, tagColXl } from '@/lib/styles'
 import type { UserInfo } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 
 export function UsersPanel() {
   const pushToast = useToastStore((s) => s.push)
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore((s) => s.user)
 
   const [query, setQuery] = useState<UsersQuery>({ page: 1, size: 10, keyword: '', role: '', status: '' })
   const [keywordInput, setKeywordInput] = useState('')
@@ -36,6 +40,7 @@ export function UsersPanel() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<UserInfo | null>(null)
   const [resetResult, setResetResult] = useState<ResetPasswordResult | null>(null)
+  const [createResult, setCreateResult] = useState<CreateUserResult | null>(null)
   const [confirm, setConfirm] = useState<
     | { type: 'delete'; user: UserInfo }
     | { type: 'status'; user: UserInfo; next: 'ENABLED' | 'DISABLED' }
@@ -87,7 +92,7 @@ export function UsersPanel() {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <p className="min-w-[240px] flex-1 text-[14px] text-ink-3">
-          账号由管理员创建（无开放注册）；SUPERADMIN 可分配 ADMIN / USER。
+          账号由管理员创建（无开放注册）；超级管理员仅一名且不可创建，SUPERADMIN 可分配 ADMIN / USER。
         </p>
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-4" />
@@ -149,6 +154,9 @@ export function UsersPanel() {
             {data?.records.map((u) => {
               const role = ROLE[u.role] ?? ROLE.USER
               const st = USER_STATUS[u.status] ?? USER_STATUS.ENABLED
+              // 自锁保护：自己只能改资料/改密码；重置密码对 SUPERADMIN 一律隐藏（防新密码丢失自锁）
+              const isSelf = currentUser?.id === u.id
+              const resetBlocked = isSelf || u.role === 'SUPERADMIN'
               return (
                 <tr key={u.id} className="border-b border-line last:border-0 hover:bg-bg-hover/60">
                   <td className="px-4 py-3 font-medium text-ink">{u.username}</td>
@@ -169,25 +177,39 @@ export function UsersPanel() {
                       <button type="button" className={rowBtn} onClick={() => setEditing(u)}>
                         编辑
                       </button>
-                      <button type="button" className={rowBtn} onClick={() => setConfirm({ type: 'reset', user: u })}>
-                        重置密码
-                      </button>
-                      <button
-                        type="button"
-                        className={rowBtn}
-                        onClick={() =>
-                          setConfirm({
-                            type: 'status',
-                            user: u,
-                            next: u.status === 'ENABLED' ? 'DISABLED' : 'ENABLED',
-                          })
-                        }
-                      >
-                        {u.status === 'ENABLED' ? '禁用' : '启用'}
-                      </button>
-                      <button type="button" className={rowBtnDanger} onClick={() => setConfirm({ type: 'delete', user: u })}>
-                        删除
-                      </button>
+                      {!resetBlocked && (
+                        <button
+                          type="button"
+                          className={rowBtn}
+                          onClick={() => setConfirm({ type: 'reset', user: u })}
+                        >
+                          重置密码
+                        </button>
+                      )}
+                      {!isSelf && (
+                        <>
+                          <button
+                            type="button"
+                            className={rowBtn}
+                            onClick={() =>
+                              setConfirm({
+                                type: 'status',
+                                user: u,
+                                next: u.status === 'ENABLED' ? 'DISABLED' : 'ENABLED',
+                              })
+                            }
+                          >
+                            {u.status === 'ENABLED' ? '禁用' : '启用'}
+                          </button>
+                          <button
+                            type="button"
+                            className={rowBtnDanger}
+                            onClick={() => setConfirm({ type: 'delete', user: u })}
+                          >
+                            删除
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -214,41 +236,29 @@ export function UsersPanel() {
         />
       )}
 
-      {createOpen && <UserFormModal mode="create" onClose={() => setCreateOpen(false)} />}
+      {createOpen && (
+        <UserFormModal mode="create" onClose={() => setCreateOpen(false)} onCreated={setCreateResult} />
+      )}
       {editing && <UserFormModal key={editing.id} mode="edit" user={editing} onClose={() => setEditing(null)} />}
 
+      {createResult?.tempPassword && (
+        <TempPasswordModal
+          title="用户已创建 · 初始密码"
+          username={createResult.user.username}
+          password={createResult.tempPassword}
+          note={`${createResult.user.username} 首次登录需使用该密码并强制修改。请妥善保存，该密码不会再次显示。`}
+          onClose={() => setCreateResult(null)}
+        />
+      )}
+
       {resetResult && (
-        <Modal
-          open
-          onClose={() => setResetResult(null)}
+        <TempPasswordModal
           title="密码已重置"
-          width="max-w-[400px]"
-          footer={
-            <button type="button" className={btnPrimary} onClick={() => setResetResult(null)}>
-              完成
-            </button>
-          }
-        >
-          <p className="text-[14px] leading-relaxed text-ink-2">
-            请将新密码告知用户。出于安全考虑，它只会明文显示这一次：
-          </p>
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-line-strong bg-bg-section px-3 py-2.5">
-            <code className="text-[15px] font-medium text-ink">{resetResult.newPassword}</code>
-            <button
-              type="button"
-              className={rowBtn}
-              onClick={() => {
-                navigator.clipboard?.writeText(resetResult.newPassword).catch(() => undefined)
-                pushToast('已复制到剪贴板')
-              }}
-            >
-              复制
-            </button>
-          </div>
-          <p className="mt-2 text-[12.5px] text-ink-3">
-            {resetResult.username} 已被强制下线，首次登录需修改密码。
-          </p>
-        </Modal>
+          username={resetResult.username}
+          password={resetResult.newPassword}
+          note={`${resetResult.username} 已被强制下线，首次登录需修改密码。`}
+          onClose={() => setResetResult(null)}
+        />
       )}
 
       <ConfirmModal
@@ -300,14 +310,65 @@ export function UsersPanel() {
   )
 }
 
+/** 一次性明文密码弹窗：创建（随机初始密码）与重置密码共用，明文只显示这一次 */
+function TempPasswordModal({
+  title,
+  username,
+  password,
+  note,
+  onClose,
+}: {
+  title: string
+  username: string
+  password: string
+  note: string
+  onClose: () => void
+}) {
+  const pushToast = useToastStore((s) => s.push)
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      width="max-w-[400px]"
+      footer={
+        <button type="button" className={btnPrimary} onClick={onClose}>
+          完成
+        </button>
+      }
+    >
+      <p className="text-[14px] leading-relaxed text-ink-2">
+        请将密码告知 <b>{username}</b>。出于安全考虑，它只会明文显示这一次：
+      </p>
+      <div className="mt-3 flex items-center justify-between rounded-lg border border-line-strong bg-bg-section px-3 py-2.5">
+        <code className="text-[15px] font-medium text-ink">{password}</code>
+        <button
+          type="button"
+          className={rowBtn}
+          onClick={() => {
+            navigator.clipboard?.writeText(password).catch(() => undefined)
+            pushToast('已复制到剪贴板')
+          }}
+        >
+          复制
+        </button>
+      </div>
+      <p className="mt-2 text-[12.5px] text-ink-3">{note}</p>
+    </Modal>
+  )
+}
+
 function UserFormModal({
   mode,
   user,
   onClose,
+  onCreated,
 }: {
   mode: 'create' | 'edit'
   user?: UserInfo
   onClose: () => void
+  /** 创建成功且生成了随机初始密码时回调，供父级弹出一次性明文弹窗 */
+  onCreated?: (res: CreateUserResult) => void
 }) {
   const pushToast = useToastStore((s) => s.push)
   const queryClient = useQueryClient()
@@ -319,26 +380,44 @@ function UserFormModal({
     nickname: user?.nickname ?? '',
     email: user?.email ?? '',
     role: user?.role ?? 'USER',
+    mustChangePassword: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
-  const submitMut = useMutation({
+  // 初始密码留空 → 自动生成随机密码，首次登录必须改密（开关锁定开启）
+  const passwordBlank = form.password.trim().length === 0
+  // 超管唯一且不可创建/晋升/变更（编辑超管本人时角色锁定）
+  const roleLocked = isEdit && user?.role === 'SUPERADMIN'
+
+  const submitMut = useMutation<UserInfo | CreateUserResult, Error, void>({
     mutationFn: () =>
       isEdit
         ? updateUser(user!.id, {
             nickname: form.nickname || undefined,
             email: form.email || undefined,
-            role: form.role,
+            // 超管本人角色不可变更，且后端仅接受 USER / ADMIN，不回传 role
+            role: user?.role === 'SUPERADMIN' ? undefined : form.role,
           })
         : createUser({
             username: form.username.trim(),
-            password: form.password,
+            password: passwordBlank ? undefined : form.password,
+            mustChangePassword: passwordBlank ? true : form.mustChangePassword,
             nickname: form.nickname || undefined,
             email: form.email || undefined,
             role: form.role,
           }),
-    onSuccess: () => {
-      pushToast(isEdit ? '已保存' : '用户已创建，首次登录需修改密码')
+    onSuccess: (res) => {
+      if (isEdit) {
+        pushToast('已保存')
+      } else {
+        const created = res as CreateUserResult
+        if (created.tempPassword) {
+          pushToast('用户已创建，已生成随机初始密码')
+          onCreated?.(created)
+        } else {
+          pushToast(form.mustChangePassword ? '用户已创建，该用户首次登录需修改密码' : '用户已创建')
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ['users'] })
       onClose()
     },
@@ -351,7 +430,8 @@ function UserFormModal({
         setFormError('用户名需为 4-64 位字母、数字或下划线')
         return false
       }
-      if (!/^(?=.*[A-Za-z])(?=.*\d).{8,64}$/.test(form.password)) {
+      // 密码选填：留空自动生成随机密码；填写时才校验强度
+      if (!passwordBlank && !/^(?=.*[A-Za-z])(?=.*\d).{8,64}$/.test(form.password.trim())) {
         setFormError('密码需 8-64 位，且同时包含字母与数字')
         return false
       }
@@ -377,6 +457,7 @@ function UserFormModal({
       open
       onClose={onClose}
       title={isEdit ? `编辑用户 · ${user?.username}` : '新建用户'}
+      width="max-w-[480px]"
       footer={
         <>
           <button type="button" className={btnGhost} onClick={onClose}>
@@ -388,7 +469,7 @@ function UserFormModal({
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="max-h-[58vh] space-y-5 overflow-y-auto pr-1">
         {!isEdit && (
           <>
             <Field label="用户名" required>
@@ -400,16 +481,36 @@ function UserFormModal({
                 className={inputCls}
               />
             </Field>
-            <Field label="初始密码" required hint="创建后该用户首次登录将被强制修改密码">
-              <Input
-                type="password"
-                value={form.password}
-                onChange={set('password')}
-                placeholder="8-64 位，需含字母与数字"
-                autoComplete="new-password"
-                className={inputCls}
-              />
-            </Field>
+            {/* 初始密码 + 强制改密开关作为一个整体，与上下字段拉开距离 */}
+            <div className="space-y-2">
+              <Field label="初始密码">
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={set('password')}
+                  placeholder="留空则自动生成；8-64 位，需含字母与数字"
+                  autoComplete="new-password"
+                  className={inputCls}
+                />
+              </Field>
+              {/* 说明与开关：随输入框文字起点缩进，字号弱化 */}
+              <div className="space-y-1.5 pl-3">
+                <p className="text-[11.5px] text-ink-3">
+                  {passwordBlank
+                    ? '留空自动生成随机密码（明文仅显示一次），首次登录必须修改'
+                    : '已填写密码，默认无需强制修改，可按需开启'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] text-ink-3">首次登录强制修改密码</span>
+                  <Switch
+                    checked={passwordBlank || form.mustChangePassword}
+                    disabled={passwordBlank}
+                    onChange={(v) => setForm((f) => ({ ...f, mustChangePassword: v }))}
+                    aria-label="首次登录强制修改密码"
+                  />
+                </div>
+              </div>
+            </div>
           </>
         )}
         <Field label="昵称">
@@ -418,11 +519,18 @@ function UserFormModal({
         <Field label="邮箱">
           <Input value={form.email} onChange={set('email')} placeholder="name@example.com（可选）" className={inputCls} />
         </Field>
-        <Field label="角色" required>
-          <Select value={form.role} onChange={set('role')}>
+        <Field
+          label="角色"
+          required
+          hint={
+            roleLocked ? <span className="block pl-3 text-[11.5px]">超级管理员角色不可变更</span> : undefined
+          }
+        >
+          <Select value={form.role} onChange={set('role')} disabled={roleLocked}>
+            {/* 超管仅展示当前角色（不可创建、不可晋升、不可变更） */}
+            {roleLocked && <option value="SUPERADMIN">SUPERADMIN — 超级管理员</option>}
             <option value="USER">USER — 普通用户</option>
             <option value="ADMIN">ADMIN — 管理员</option>
-            <option value="SUPERADMIN">SUPERADMIN — 超级管理员</option>
           </Select>
         </Field>
         {formError && <Alert tone="error">{formError}</Alert>}

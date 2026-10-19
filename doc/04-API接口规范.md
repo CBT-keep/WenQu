@@ -554,30 +554,53 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | 字段 | 类型 | 必填 | 约束 |
 |---|---|---|---|
 | `username` | string | ✅ | 4–64，字母数字下划线，唯一 |
-| `password` | string | ✅ | 8–64，含字母与数字 |
+| `password` | string | 否 | 8–64，含字母与数字；**留空则服务端生成随机初始密码**（明文仅响应一次） |
 | `nickname` | string | 否 | ≤64 |
 | `email` | string | 否 | 合法邮箱 |
-| `role` | string | ✅ | `USER` / `ADMIN` / `SUPERADMIN` |
+| `role` | string | ✅ | `USER` / `ADMIN`（**超管唯一且不可创建**，传 `SUPERADMIN` 校验失败） |
+| `mustChangePassword` | boolean | 否 | 首次登录强制改密。`password` 留空时恒为 `true`（忽略此字段）；指定密码时默认 `false`，可显式传 `true` |
 | `status` | string | 否 | 默认 `ENABLED` |
 
 ```json
-{ "username": "zhangwei", "password": "Wenqu@2026", "nickname": "张伟",
+{ "username": "zhangwei", "nickname": "张伟",
   "email": "zw@example.com", "role": "USER" }
 ```
 
-**响应 201**：`data` 为新用户对象（不含密码）。失败：`10003` 用户名已存在。
+**响应 201**
 
-> 创建 `SUPERADMIN` 仅 `SUPERADMIN` 可操作（与 `role` 参数无关的角色提升保护）。
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "user": { "id": 2, "username": "zhangwei", "nickname": "张伟", "email": "zw@example.com",
+      "role": "USER", "status": "ENABLED", "mustChangePassword": true,
+      "lastLoginAt": null, "createdAt": "2026-10-18T09:02:11Z" },
+    "tempPassword": "Wqab3km2P74"
+  },
+  "traceId": "b1f2c3d4e5f6"
+}
+```
+
+> `tempPassword` 仅在未指定 `password`（随机生成）时非空，**明文只此一次**，前端须弹窗让管理员抄走；指定 `password` 时为 `null`。
+> 密码语义：留空 → 随机临时密码 + 首次登录强制改密；指定密码 → 默认无需强制改密（`mustChangePassword=true` 可强制）。
+> 失败：`10003` 用户名已存在。**`SUPERADMIN` 不可创建**（超管唯一，由部署种子数据产生）。
 
 ## 3.9 用户详情 / 编辑 / 删除 / 状态 / 重置密码
 
 | 接口 | 说明 |
 |---|---|
 | `GET /users/{id}` | 返回单个用户对象 |
-| `PUT /users/{id}` | 请求体同创建但无 `password`（`username` 不可改）；`role` 变更需 SUPERADMIN |
+| `PUT /users/{id}` | 请求体同创建但无 `password` / `mustChangePassword`（`username` 不可改）；`role` 仅 `USER` / `ADMIN`，不可晋升 `SUPERADMIN` |
 | `DELETE /users/{id}` | 物理删除；其创建的知识库/数据源/会话一并删除（FK CASCADE）；`70002` 不可删自己 |
 | `PUT /users/{id}/status` | `{ "status": "DISABLED" }`；禁用后该用户所有 refreshToken 吊销 |
-| `PUT /users/{id}/password` | `{ "newPassword": "Temp@2026" }`；重置后 `mustChangePassword=true`，返回新密码明文一次 |
+| `PUT /users/{id}/password` | `{ "newPassword": "Temp@2026" }`（可空 → 随机临时密码）；重置后 `mustChangePassword=true`，返回新密码明文一次 |
+
+> **超管自锁保护**（`SUPERADMIN` 对自己的账号）：
+> - ✅ 可修改自己的资料；可经 `PUT /auth/me/password` 修改自己的密码（需旧密码）；
+> - ❌ 不可禁用自己（`PUT /users/{id}/status` 与 `PUT /users/{id}` 的 `status` 字段均拒绝）；
+> - ❌ 不可删除自己（`70002`）；❌ 不可变更自己的角色（不能降级，也不能改）；
+> - ❌ 不可重置自己的密码，也不可重置 `SUPERADMIN` 的密码（防一次性新密码未保存导致自锁），改密一律走 `PUT /auth/me/password`。
 
 ## 3.10 用户下拉
 
