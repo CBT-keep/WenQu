@@ -15,7 +15,8 @@ import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 @RestController
 @RequestMapping("/api/v1/knowledge-bases")
 @RequiredArgsConstructor
-public class KnowledgeBaseDocumentController {
+public class KnowledgeBaseController {
+
     private final KnowledgeBaseService service;
 
     /**
