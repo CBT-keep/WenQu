@@ -25,3 +25,15 @@ frontend/.vite/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 测试仅在本地保留，不提交至 GitHub
+**/src/test/
+**/tests/
+**/__tests__/
+*.test.*
+*.spec.*
+
+# 测试报告与覆盖率产物
+**/coverage/
+**/test-results/
+**/playwright-report/

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseMapper">
+  <select id="findKnowledgeBaseOwner" resultType="java.lang.Long">
+    SELECT owner_id FROM kb_knowledge_base WHERE id = #{kbId}
+  </select>
+  <select id="search" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection">
+
+            SELECT d.id AS id, d.kb_id AS "kbId", d.name AS name, d.file_type AS "fileType",
+                   d.file_size AS "fileSize", d.char_count AS "charCount", d.chunk_count AS "chunkCount",
+                   d.status AS status, d.error_msg AS "errorMsg",
+                   d.created_at AS "createdAt", d.updated_at AS "updatedAt",
+                   CASE WHEN d.status = 'READY' THEN 100
+                        WHEN d.status = 'FAILED' THEN 0
+                        WHEN COALESCE(c.total_chunks, 0) = 0 THEN 0
+                        ELSE LEAST(99, (c.embedded_chunks * 100 / c.total_chunks)::int)
+                   END AS progress
+            FROM kb_document d
+            LEFT JOIN LATERAL (
+                SELECT count(*) AS total_chunks,
+                       count(*) FILTER (WHERE embedding IS NOT NULL) AS embedded_chunks
+                FROM kb_chunk WHERE kb_id = d.kb_id AND document_id = d.id
+            ) c ON true
+            WHERE d.kb_id = #{kbId}
+              <if test="keyword != null">AND d.name ILIKE '%' || #{keyword} || '%'</if>
+              <if test="status != null">AND d.status = #{status}</if>
+            ORDER BY d.created_at DESC, d.id DESC
+
+  </select>
+
+
+</mapper>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.cbt.wenqu.backend.modules.auth.mapper.AuthMapper">
+  <select id="findUserByUsername" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user WHERE username = #{username}
+  </select>
+  <select id="findUserById" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user WHERE id = #{id}
+  </select>
+  <update id="updateLastLoginAt">UPDATE sys_user SET last_login_at = now() WHERE id = #{id}</update>
+  <update id="updatePassword">UPDATE sys_user SET password_hash = #{hash}, must_change_password = false WHERE id = #{id}</update>
+
+  <insert id="insertLoginAttempt" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO sys_login_attempt (username, ip, success, attempted_at) VALUES (#{username}, #{ip}, #{success}, #{attemptedAt})
+  </insert>
+  <select id="countRecentFailures" resultType="long">
+    SELECT count(*) FROM sys_login_attempt WHERE username = #{username} AND success = false AND attempted_at > now() - make_interval(mins => #{minutes})
+  </select>
+
+  <select id="findRefreshTokenByJti" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysRefreshToken">
+    SELECT * FROM sys_refresh_token WHERE jti = #{jti}
+  </select>
+  <insert id="insertRefreshToken" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO sys_refresh_token (user_id, jti, expires_at, revoked, user_agent, ip, created_at) VALUES (#{userId}, #{jti}, #{expiresAt}, #{revoked}, #{userAgent}, #{ip}, #{createdAt})
+  </insert>
+  <update id="revokeRefreshTokenByJti">UPDATE sys_refresh_token SET revoked = true WHERE jti = #{jti}</update>
+  <update id="revokeRefreshTokensByUserId">UPDATE sys_refresh_token SET revoked = true WHERE user_id = #{userId} AND revoked = false</update>
+
+  <select id="findSettingByKey" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysSetting">
+    SELECT * FROM sys_setting WHERE key = #{key}
+  </select>
+</mapper>

@@ -15,6 +15,8 @@ public final class ErrorCode {
     public static final int FORBIDDEN = 20006;          // 无权限（doc/04 §1.4）
     public static final int CANNOT_DELETE_SELF = 70002; // 不可删除当前登录账号
     public static final int BAD_REQUEST = 40000;        // 参数不合法
+    public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在
+    public static final int FORBIDDEN_RESOURCE = 40301;   // 无权访问资源
     public static final int INTERNAL_ERROR = 50000;     // 服务器内部错误
 
     private ErrorCode() {

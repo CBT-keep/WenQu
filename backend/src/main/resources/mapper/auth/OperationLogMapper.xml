@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogMapper">
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO sys_operation_log (user_id, username, type, action, target, detail, ip, user_agent, result, trace_id, created_at) VALUES (#{userId}, #{username}, #{type}, #{action}, #{target}, #{detail}, #{ip}, #{userAgent}, #{result}, #{traceId}, #{createdAt})
+  </insert>
+
+</mapper>

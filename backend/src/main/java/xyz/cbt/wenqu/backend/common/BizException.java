@@ -48,7 +48,7 @@ public class BizException extends RuntimeException {
     }
 
     /**
-     * 业务规则类错误：按 doc/04 §1.4 约定返回 HTTP 200 + 非 0 code
+     * 业务规则类错误：约定返回 HTTP 200 + 非 0 code
      */
     public static BizException cannotDeleteSelf() {
         return new BizException(ErrorCode.CANNOT_DELETE_SELF, "不能删除当前登录账号", 200);
@@ -56,5 +56,13 @@ public class BizException extends RuntimeException {
 
     public static BizException badRequest(String message) {
         return new BizException(ErrorCode.BAD_REQUEST, message, 400);
+    }
+
+    public static BizException knowledgeBaseNotFound() {
+        return new BizException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在", 404);
+    }
+
+    public static BizException forbiddenResource() {
+        return new BizException(ErrorCode.FORBIDDEN_RESOURCE, "无权访问该知识库", 403);
     }
 }

@@ -18,7 +18,7 @@
 并让 NL2SQL 引用知识库中的**指标口径**，从而让"查数"更准确。
 
 - 前端：React + TypeScript + shadcn/ui + Tailwind CSS
-- 后端（重点）：Spring Boot 4.1.1 + Maven + PostgreSQL(pgvector) + LangChain4j + OpenAI 兼容协议 + Spring Security
+- 后端（重点）：Spring Boot 4.1.1 + Maven + MyBatis + PostgreSQL(pgvector) + LangChain4j + OpenAI 兼容协议 + Spring Security
 - 基础设施：PostgreSQL 16(+pgvector)、Redis、RabbitMQ、OpenAI 兼容大模型服务
   （文件存储为本地磁盘，**不使用 MinIO / 对象存储**）
 

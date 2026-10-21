@@ -12,8 +12,8 @@ import xyz.cbt.wenqu.backend.common.PageResult;
 import xyz.cbt.wenqu.backend.modules.auth.entity.LoginUser;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysOperationLog;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysUser;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogRepository;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.RefreshTokenRepository;
+import xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogMapper;
+import xyz.cbt.wenqu.backend.modules.auth.mapper.AuthMapper;
 import xyz.cbt.wenqu.backend.modules.auth.vo.UserVO;
 import xyz.cbt.wenqu.backend.modules.user.dto.UserCreateDTO;
 import xyz.cbt.wenqu.backend.modules.user.dto.UserUpdateDTO;
@@ -37,8 +37,8 @@ import java.util.List;
 public class UserServiceImpl implements UserService {
 
     private final UserManageMapper userManageMapper;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final OperationLogRepository operationLogRepository;
+    private final AuthMapper authMapper;
+    private final OperationLogMapper operationLogMapper;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -49,7 +49,7 @@ public class UserServiceImpl implements UserService {
         String kw = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
         long total = userManageMapper.count(kw, role, status);
         List<UserVO> records = userManageMapper
-                .search(kw, role, status, safeSize, (safePage - 1) * safeSize)
+                .search(kw, role, status, safeSize, (long) (safePage - 1) * safeSize)
                 .stream()
                 .map(UserVO::from)
                 .toList();
@@ -85,11 +85,12 @@ public class UserServiceImpl implements UserService {
         user.setStatus(dto.getStatus() != null ? dto.getStatus() : "ENABLED");
         user.setMustChangePassword(mustChange);
         user.setCreatedBy(currentUserId());
-        // NOT NULL DEFAULT now() 的列必须显式赋值（Spring Data JDBC 会把 null 写进 INSERT 顶掉默认值）
+        // INSERT 显式传入时间，保持返回对象与持久化数据一致
         user.setCreatedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
 
-        SysUser saved = userManageMapper.save(user);
+        userManageMapper.insert(user);
+        SysUser saved = user;
         audit("USER_CREATE", saved.getUsername(), "创建用户，角色 " + saved.getRole());
         return new UserCreateVO(UserVO.from(saved), passwordProvided ? null : plain);
     }
@@ -129,7 +130,8 @@ public class UserServiceImpl implements UserService {
         }
         user.setUpdatedAt(OffsetDateTime.now());
 
-        SysUser saved = userManageMapper.save(user);
+        userManageMapper.update(user);
+        SysUser saved = user;
         audit("USER_UPDATE", saved.getUsername(), "编辑用户资料");
         return UserVO.from(saved);
     }
@@ -153,7 +155,8 @@ public class UserServiceImpl implements UserService {
         applyStatus(user, status);
         user.setUpdatedAt(OffsetDateTime.now());
 
-        SysUser saved = userManageMapper.save(user);
+        userManageMapper.update(user);
+        SysUser saved = user;
         audit("USER_STATUS", saved.getUsername(), "状态变更为 " + status);
         return UserVO.from(saved);
     }
@@ -176,9 +179,9 @@ public class UserServiceImpl implements UserService {
         user.setPasswordHash(passwordEncoder.encode(plain));
         user.setMustChangePassword(true);
         user.setUpdatedAt(OffsetDateTime.now());
-        userManageMapper.save(user);
+        userManageMapper.update(user);
         // 改密 / 封禁秒踢：吊销该用户全部 refresh token
-        refreshTokenRepository.revokeAllByUserId(id);
+        authMapper.revokeRefreshTokensByUserId(id);
 
         audit("USER_RESET_PASSWORD", user.getUsername(), "重置密码");
         return new ResetPasswordVO(user.getId(), user.getUsername(), plain);
@@ -204,7 +207,7 @@ public class UserServiceImpl implements UserService {
     private void applyStatus(SysUser user, String status) {
         user.setStatus(status);
         if ("DISABLED".equals(status)) {
-            refreshTokenRepository.revokeAllByUserId(user.getId());
+            authMapper.revokeRefreshTokensByUserId(user.getId());
         }
     }
 
@@ -263,7 +266,7 @@ public class UserServiceImpl implements UserService {
             entry.setDetail(detail);
             entry.setResult("SUCCESS");
             entry.setCreatedAt(OffsetDateTime.now());
-            operationLogRepository.save(entry);
+            operationLogMapper.insert(entry);
         } catch (Exception e) {
             log.warn("审计日志写入失败：{}", action, e);
         }

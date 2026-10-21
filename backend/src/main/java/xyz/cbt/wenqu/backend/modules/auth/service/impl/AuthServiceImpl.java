@@ -19,10 +19,7 @@ import xyz.cbt.wenqu.backend.modules.auth.entity.LoginUser;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysLoginAttempt;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysRefreshToken;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysUser;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.LoginAttemptRepository;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.RefreshTokenRepository;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.SystemSettingRepository;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.UserMapper;
+import xyz.cbt.wenqu.backend.modules.auth.mapper.AuthMapper;
 import xyz.cbt.wenqu.backend.modules.auth.service.AuthService;
 import xyz.cbt.wenqu.backend.modules.auth.vo.LoginVO;
 import xyz.cbt.wenqu.backend.modules.auth.vo.UserVO;
@@ -42,10 +39,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
-    private final UserMapper userMapper;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final LoginAttemptRepository loginAttemptRepository;
-    private final SystemSettingRepository systemSettingRepository;
+    private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -58,7 +52,7 @@ public class AuthServiceImpl implements AuthService {
         int maxFailures = intSetting("security.max-login-failures", DEFAULT_MAX_FAILURES);
 
         // 连续失败达到最大允许重试次数即锁定
-        if (loginAttemptRepository.countRecentFailures(username, lockMinutes) >= maxFailures) {
+        if (authMapper.countRecentFailures(username, lockMinutes) >= maxFailures) {
             throw BizException.accountLocked(lockMinutes);
         }
 
@@ -68,7 +62,7 @@ public class AuthServiceImpl implements AuthService {
             LoginUser loginUser = (LoginUser) authentication.getPrincipal();
 
             recordAttempt(username, ip, true);
-            userMapper.updateLastLoginAt(loginUser.getUserId());
+            authMapper.updateLastLoginAt(loginUser.getUserId());
             // 同步内存对象，否则本次登录响应里的 lastLoginAt 还是上一次的值
             loginUser.getUser().setLastLoginAt(OffsetDateTime.now());
             return issueTokens(loginUser, ip, userAgent);
@@ -96,7 +90,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String jti = jwtUtil.parseJti(refreshToken);
-        SysRefreshToken stored = refreshTokenRepository.findByJti(jti)
+        SysRefreshToken stored = authMapper.findRefreshTokenByJti(jti)
                 .orElseThrow(BizException::refreshInvalid);
 
         if (Boolean.TRUE.equals(stored.getRevoked())
@@ -133,34 +127,34 @@ public class AuthServiceImpl implements AuthService {
                 && jwtUtil.validate(refreshToken)
                 && jwtUtil.isType(refreshToken, JwtUtil.TYPE_REFRESH)) {
             String jti = jwtUtil.parseJti(refreshToken);
-            refreshTokenRepository.findByJti(jti).ifPresent(stored -> {
+            authMapper.findRefreshTokenByJti(jti).ifPresent(stored -> {
                 if (userId.equals(stored.getUserId())) {
-                    refreshTokenRepository.revokeByJti(jti);
+                    authMapper.revokeRefreshTokenByJti(jti);
                 }
             });
             return;
         }
         // 未指定 token → 吊销该用户全部令牌
-        refreshTokenRepository.revokeAllByUserId(userId);
+        authMapper.revokeRefreshTokensByUserId(userId);
     }
 
     @Override
     public UserVO me(Long userId) {
-        return userMapper.findById(userId).map(this::toUserVO).orElseThrow(BizException::badCredentials);
+        return authMapper.findUserById(userId).map(this::toUserVO).orElseThrow(BizException::badCredentials);
     }
 
     @Override
     @Transactional
     public void changePassword(Long userId, ChangePasswordDTO dto) {
-        SysUser user = userMapper.findById(userId).orElseThrow(BizException::badCredentials);
+        SysUser user = authMapper.findUserById(userId).orElseThrow(BizException::badCredentials);
 
         if (!passwordEncoder.matches(dto.getOldPassword(), user.getPasswordHash())) {
             throw BizException.oldPasswordWrong();
         }
 
-        userMapper.updatePassword(userId, passwordEncoder.encode(dto.getNewPassword()));
+        authMapper.updatePassword(userId, passwordEncoder.encode(dto.getNewPassword()));
         // 更改密码或管理员封禁秒踢
-        refreshTokenRepository.revokeAllByUserId(userId);
+        authMapper.revokeRefreshTokensByUserId(userId);
     }
 
     /**
@@ -176,10 +170,9 @@ public class AuthServiceImpl implements AuthService {
         record.setRevoked(false);
         record.setIp(ip);
         record.setUserAgent(truncate(userAgent, MAX_USER_AGENT_LEN));
-        // 必须显式赋值：Spring Data JDBC 会把 null 字段原样写进 INSERT
-        // 顶掉数据库里的 DEFAULT now()，导致 not-null 约束报错
+        // INSERT 显式传入创建时间
         record.setCreatedAt(OffsetDateTime.now());
-        refreshTokenRepository.save(record);
+        authMapper.insertRefreshToken(record);
 
         SysUser user = loginUser.getUser();
         return LoginVO.builder()
@@ -201,14 +194,14 @@ public class AuthServiceImpl implements AuthService {
         attempt.setIp(ip);
         attempt.setSuccess(success);
         attempt.setAttemptedAt(OffsetDateTime.now());
-        loginAttemptRepository.save(attempt);
+        authMapper.insertLoginAttempt(attempt);
     }
 
     /**
      * 获取系统参数的 int 值，如果不存在则返回默认值
      */
     private int intSetting(String key, int fallback) {
-        return systemSettingRepository.findByKey(key)
+        return authMapper.findSettingByKey(key)
                 .map(setting -> {
                     try {
                         return Integer.parseInt(setting.getValue().trim());

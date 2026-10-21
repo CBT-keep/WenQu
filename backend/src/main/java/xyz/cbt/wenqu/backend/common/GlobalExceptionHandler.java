@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -42,6 +43,18 @@ public class GlobalExceptionHandler {
                 .body(Result.error(ErrorCode.BAD_REQUEST, message));
     }
 
+    /**
+     * 参数类型不匹配
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Result<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(ErrorCode.BAD_REQUEST, e.getName() + " 参数不合法"));
+    }
+
+    /**
+     * 未处理异常
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleException(Exception e) {
         log.error("未处理异常", e);

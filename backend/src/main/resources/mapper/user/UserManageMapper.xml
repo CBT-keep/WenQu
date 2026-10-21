@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.cbt.wenqu.backend.modules.user.mapper.UserManageMapper">
+  <sql id="filters">
+    <where>
+      <if test="keyword != null">AND (username ILIKE '%' || #{keyword} || '%' OR nickname ILIKE '%' || #{keyword} || '%')</if>
+      <if test="role != null">AND role = #{role}</if>
+      <if test="status != null">AND status = #{status}</if>
+    </where>
+  </sql>
+  <select id="findByUsername" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user WHERE username = #{username}
+  </select>
+  <select id="findById" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user WHERE id = #{id}
+  </select>
+  <select id="findAllOrdered" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user ORDER BY id ASC
+  </select>
+  <select id="search" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
+    SELECT * FROM sys_user <include refid="filters"/> ORDER BY id ASC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">
+    SELECT count(*) FROM sys_user <include refid="filters"/>
+  </select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO sys_user (username, password_hash, nickname, email, role, status, must_change_password, last_login_at, created_by, created_at, updated_at) VALUES (#{username}, #{passwordHash}, #{nickname}, #{email}, #{role}, #{status}, #{mustChangePassword}, #{lastLoginAt}, #{createdBy}, #{createdAt}, #{updatedAt})
+  </insert>
+  <update id="update">
+    UPDATE sys_user SET nickname = #{nickname}, email = #{email}, role = #{role}, status = #{status},
+      password_hash = #{passwordHash}, must_change_password = #{mustChangePassword}, updated_at = #{updatedAt}
+    WHERE id = #{id}
+  </update>
+  <delete id="deleteById">DELETE FROM sys_user WHERE id = #{id}</delete>
+</mapper>

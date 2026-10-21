@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import xyz.cbt.wenqu.backend.modules.auth.entity.SysOperationLog;
-import xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogRepository;
+import xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogMapper;
 
 /**
  * 操作日志异步落库
@@ -15,12 +15,12 @@ import xyz.cbt.wenqu.backend.modules.auth.mapper.OperationLogRepository;
 @RequiredArgsConstructor
 public class OpLogWriter {
 
-    private final OperationLogRepository operationLogRepository;
+    private final OperationLogMapper operationLogMapper;
 
     @Async("opLogExecutor")
     public void write(SysOperationLog entry) {
         try {
-            operationLogRepository.save(entry);
+            operationLogMapper.insert(entry);
         } catch (Exception e) {
             log.warn("操作日志持久化失败: {}", e.getMessage());
         }
