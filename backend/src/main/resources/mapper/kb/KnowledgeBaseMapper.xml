@@ -28,5 +28,26 @@
 
   </select>
 
+  <select id="searchKnowledgeBases" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection">
+    SELECT kb.id AS id, kb.name AS name, kb.description AS description,
+           kb.embedding_model_id AS "embeddingModelId", m.name AS "embeddingModelName",
+           kb.rerank_enabled AS "rerankEnabled", kb.rerank_model_id AS "rerankModelId",
+           kb.retrieval_mode AS "retrievalMode", kb.top_k AS "topK",
+           kb.score_threshold AS "scoreThreshold",
+           kb.vector_weight AS "vectorWeight", kb.bm25_weight AS "bm25Weight",
+           kb.owner_id AS "ownerId", COALESCE(NULLIF(u.nickname, ''), u.username) AS "ownerName",
+           kb.visibility AS visibility, kb.status AS status,
+           kb.doc_count AS "docCount", kb.chunk_count AS "chunkCount",
+           kb.created_at AS "createdAt", kb.updated_at AS "updatedAt"
+    FROM kb_knowledge_base kb
+    JOIN llm_model m ON m.id = kb.embedding_model_id
+    JOIN sys_user u ON u.id = kb.owner_id
+    <where>
+      <if test="ownerId != null">AND kb.owner_id = #{ownerId}</if>
+      <if test="keyword != null">AND kb.name ILIKE '%' || #{keyword} || '%'</if>
+      <if test="status != null">AND kb.status = #{status}</if>
+    </where>
+    ORDER BY kb.updated_at DESC, kb.id DESC
+  </select>
 
 </mapper>
