@@ -50,4 +50,36 @@
     ORDER BY kb.updated_at DESC, kb.id DESC
   </select>
 
+  <select id="findKnowledgeBaseById" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection">
+    SELECT kb.id AS id, kb.name AS name, kb.description AS description,
+           kb.embedding_model_id AS "embeddingModelId", m.name AS "embeddingModelName",
+           kb.rerank_enabled AS "rerankEnabled", kb.rerank_model_id AS "rerankModelId",
+           kb.retrieval_mode AS "retrievalMode", kb.top_k AS "topK",
+           kb.score_threshold AS "scoreThreshold",
+           kb.vector_weight AS "vectorWeight", kb.bm25_weight AS "bm25Weight",
+           kb.owner_id AS "ownerId", COALESCE(NULLIF(u.nickname, ''), u.username) AS "ownerName",
+           kb.visibility AS visibility, kb.status AS status,
+           kb.doc_count AS "docCount", kb.chunk_count AS "chunkCount",
+           kb.created_at AS "createdAt", kb.updated_at AS "updatedAt"
+    FROM kb_knowledge_base kb
+    JOIN llm_model m ON m.id = kb.embedding_model_id
+    JOIN sys_user u ON u.id = kb.owner_id
+    WHERE kb.id = #{id}
+  </select>
+
+  <select id="countByOwnerAndName" resultType="long">
+    SELECT count(*) FROM kb_knowledge_base WHERE owner_id = #{ownerId} AND name = #{name}
+  </select>
+
+  <insert id="insertKnowledgeBase" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO kb_knowledge_base
+      (name, description, embedding_model_id, rerank_model_id, chunk_size, chunk_overlap,
+       separators, retrieval_mode, vector_weight, bm25_weight, top_k, score_threshold,
+       rerank_enabled, owner_id, visibility, status, doc_count, chunk_count, created_at, updated_at)
+    VALUES
+      (#{name}, #{description}, #{embeddingModelId}, #{rerankModelId}, #{chunkSize}, #{chunkOverlap},
+       CAST(#{separators} AS jsonb), #{retrievalMode}, #{vectorWeight}, #{bm25Weight}, #{topK}, #{scoreThreshold},
+       #{rerankEnabled}, #{ownerId}, #{visibility}, #{status}, #{docCount}, #{chunkCount}, #{createdAt}, #{updatedAt})
+  </insert>
+
 </mapper>

@@ -65,4 +65,17 @@ public class BizException extends RuntimeException {
     public static BizException forbiddenResource() {
         return new BizException(ErrorCode.FORBIDDEN_RESOURCE, "无权访问该知识库", 403);
     }
+
+    public static BizException knowledgeBaseNameTaken() {
+        return new BizException(ErrorCode.KNOWLEDGE_BASE_NAME_TAKEN, "同一归属人下知识库名称已存在", 409);
+    }
+
+    public static BizException modelUnavailable() {
+        return new BizException(ErrorCode.MODEL_UNAVAILABLE, "模型不存在或已禁用", 400);
+    }
+
+    public static BizException embeddingDimensionMismatch() {
+        return new BizException(ErrorCode.EMBEDDING_DIMENSION_MISMATCH,
+                "向量模型必须是 EMBEDDING 类型且维度与全局配置一致", 400);
+    }
 }

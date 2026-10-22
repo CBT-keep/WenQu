@@ -16,6 +16,9 @@ public final class ErrorCode {
     public static final int CANNOT_DELETE_SELF = 70002; // 不可删除当前登录账号
     public static final int BAD_REQUEST = 40000;        // 参数不合法
     public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在
+    public static final int KNOWLEDGE_BASE_NAME_TAKEN = 10003; // 知识库名称已存在（资源冲突）
+    public static final int MODEL_UNAVAILABLE = 30001;   // 模型不存在或已禁用
+    public static final int EMBEDDING_DIMENSION_MISMATCH = 40006; // 向量模型类型或维度不匹配
     public static final int FORBIDDEN_RESOURCE = 40301;   // 无权访问资源
     public static final int INTERNAL_ERROR = 50000;     // 服务器内部错误
 

@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
- * 知识库列表项（doc/04 §5.1）
+ * 知识库对象（列表 / 创建 / 详情共用，
  */
 public record KnowledgeBaseListVO(Long id, String name, String description,
                                   Long embeddingModelId, String embeddingModelName,
