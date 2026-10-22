@@ -191,6 +191,7 @@ export function mockDatasourceCreate(payload: DatasourcePayload): Datasource {
     poolSize: payload.poolSize ?? 5,
     maxRows: payload.maxRows ?? 1000,
     timeoutMs: payload.timeoutMs ?? 10000,
+    extraParams: payload.extraParams ?? {},
     ownerId: 1,
     ownerName: 'admin',
     status: 'UNKNOWN',

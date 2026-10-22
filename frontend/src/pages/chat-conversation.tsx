@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   BookMarked,
@@ -47,6 +47,7 @@ type LocalMessage = ChatMessage & { serverId?: number }
 
 export default function ChatConversationPage() {
   const { id } = useParams()
+  const queryClient = useQueryClient()
   const convId = Number(id)
   const location = useLocation()
   const navigate = useNavigate()
@@ -61,6 +62,8 @@ export default function ChatConversationPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [openRef, setOpenRef] = useState<ChatReference | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
 
   const abortRef = useRef<AbortController | null>(null)
   const activeIdRef = useRef(0)
@@ -249,6 +252,12 @@ export default function ChatConversationPage() {
     onError: (e) => pushToast(toApiError(e).message),
   })
 
+  const renameMut = useMutation({
+    mutationFn: () => updateConversation(convId, { title: titleDraft.trim() }),
+    onSuccess: () => { setRenaming(false); queryClient.invalidateQueries({ queryKey: ['conversation', convId] }); queryClient.invalidateQueries({ queryKey: ['conversations'] }) },
+    onError: (e) => pushToast(toApiError(e).message),
+  })
+
   if (convQuery.isLoading) return <LoadingBlock className="h-full" />
   if (convQuery.error || !conv) return <ErrorBlock className="h-full" message={toApiError(convQuery.error).message} />
 
@@ -258,7 +267,11 @@ export default function ChatConversationPage() {
   return (
     <div className="dot-bg flex h-full min-h-0 flex-col">
       <header className="flex h-12 flex-none items-center gap-2 border-b border-line bg-bar-bg px-5 backdrop-blur-[8px]">
-        <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{conv.title}</span>
+        {renaming ? <form className="flex min-w-0 flex-1 gap-2" onSubmit={(e) => { e.preventDefault(); if (titleDraft.trim()) renameMut.mutate() }}>
+          <input autoFocus maxLength={255} aria-label="会话名称" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
+          <button disabled={!titleDraft.trim() || renameMut.isPending}>保存</button>
+          <button type="button" onClick={() => setRenaming(false)}>取消</button>
+        </form> : <button className="min-w-0 flex-1 truncate text-left text-[15px] font-medium" title="点击重命名" onClick={() => { setTitleDraft(conv.title); setRenaming(true) }}>{conv.title} · 重命名</button>}
         <Tag tone="accent">RAG 问答</Tag>
         {referenceCount > 0 && <Tag tone="gray">引用 {referenceCount} 篇</Tag>}
         {modelName && <Tag tone="gray">{modelName}</Tag>}

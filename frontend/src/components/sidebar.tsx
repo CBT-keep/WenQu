@@ -11,6 +11,7 @@ import {
   Search,
   Settings2,
 } from 'lucide-react'
+import { ProfileModal } from '@/components/profile-modal'
 import { BrandMark } from '@/components/brand-mark'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ThemeToggleButton } from '@/components/theme-toggle'
@@ -41,6 +42,7 @@ const NAV: NavEntry[] = [
  * 会话列表占主体，资源入口沉底；配色走 v3 暖色令牌。
  */
 export function Sidebar() {
+  const [profileOpen, setProfileOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
@@ -241,8 +243,8 @@ export function Sidebar() {
           <button
             type="button"
             className={cn('flex min-w-0 flex-1 items-center gap-2', collapsed && 'justify-center')}
-            onClick={() => navigate('/change-password')}
-            title="修改密码"
+            onClick={() => setProfileOpen(true)}
+            title="个人资料"
           >
             <span className="grid size-[22px] flex-none place-items-center rounded-full bg-accent text-[12px] font-medium text-on-accent">
               {displayName.slice(0, 1)}
@@ -264,6 +266,7 @@ export function Sidebar() {
           )}
         </div>
       </div>
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </aside>
   )
 }

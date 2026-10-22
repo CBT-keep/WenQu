@@ -40,7 +40,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'modal-in relative w-full rounded-2xl border border-line-edge bg-bg-card p-6 shadow-[var(--shadow-pop)]',
+          'modal-in relative max-h-[90vh] overflow-y-auto w-full rounded-2xl border border-line-edge bg-bg-card p-6 shadow-[var(--shadow-pop)]',
           width,
         )}
       >

@@ -16,6 +16,7 @@ import java.util.Optional;
 public interface AuthMapper {
     Optional<SysUser> findUserByUsername(@Param("username") String username);
     Optional<SysUser> findUserById(@Param("id") Long id);
+    int updateProfile(@Param("id") Long id, @Param("nickname") String nickname, @Param("email") String email);
     int updateLastLoginAt(@Param("id") Long id);
     int updatePassword(@Param("id") Long id, @Param("hash") String hash);
 

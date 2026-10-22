@@ -393,8 +393,8 @@ function UserFormModal({
     mutationFn: () =>
       isEdit
         ? updateUser(user!.id, {
-            nickname: form.nickname || undefined,
-            email: form.email || undefined,
+            nickname: form.nickname,
+            email: form.email,
             // 超管本人角色不可变更，且后端仅接受 USER / ADMIN，不回传 role
             role: user?.role === 'SUPERADMIN' ? undefined : form.role,
           })

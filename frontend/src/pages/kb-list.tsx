@@ -208,7 +208,7 @@ function KbFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         ...form,
         name: form.name.trim(),
         embeddingModelId: effectiveEmbeddingId!,
-        rerankModelId: form.rerankEnabled ? (rerankQuery.data?.[0]?.id ?? undefined) : undefined,
+        rerankModelId: form.rerankEnabled ? form.rerankModelId : undefined,
       }),
     onSuccess: (kb) => {
       pushToast('知识库已创建')
@@ -228,6 +228,7 @@ function KbFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       setFormError('请先在「设置 → 模型配置」中添加 EMBEDDING 模型')
       return
     }
+    if (form.rerankEnabled && !form.rerankModelId) { setFormError('请选择可用的重排模型'); return }
     submitMut.mutate()
   }
 
@@ -300,6 +301,12 @@ function KbFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             aria-label="启用重排"
           />
         </div>
+        {form.rerankEnabled && <Field label="重排模型" required>
+          <Select value={form.rerankModelId ?? ''} onChange={(e) => setForm((f) => ({ ...f, rerankModelId: Number(e.target.value) || undefined }))}>
+            <option value="">请选择重排模型</option>
+            {rerankQuery.data?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </Select>
+        </Field>}
         {formError && <Alert tone="error">{formError}</Alert>}
       </div>
     </Modal>

@@ -7,6 +7,9 @@
   <select id="findUserById" resultType="xyz.cbt.wenqu.backend.modules.auth.entity.SysUser">
     SELECT * FROM sys_user WHERE id = #{id}
   </select>
+  <update id="updateProfile">
+    UPDATE sys_user SET nickname = COALESCE(#{nickname}, nickname), email = COALESCE(#{email}, email), updated_at = now() WHERE id = #{id}
+  </update>
   <update id="updateLastLoginAt">UPDATE sys_user SET last_login_at = now() WHERE id = #{id}</update>
   <update id="updatePassword">UPDATE sys_user SET password_hash = #{hash}, must_change_password = false WHERE id = #{id}</update>
 

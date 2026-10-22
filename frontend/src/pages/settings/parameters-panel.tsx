@@ -40,9 +40,9 @@ export function ParametersPanel() {
   const isDirty = items.some((item) => valueOf(item) !== item.value)
 
   const saveMut = useMutation({
-    mutationFn: () => updateSettings({ items: items.map((item) => ({ key: item.key, value: valueOf(item) })) }),
+    mutationFn: () => updateSettings({ items: items.filter((item) => item.key !== 'rag.embedding.dimension' && valueOf(item) !== item.value).map((item) => ({ key: item.key, value: valueOf(item) })) }),
     onSuccess: (res) => {
-      pushToast(`已保存 ${res.updated} 项，即时生效`)
+      pushToast(`已保存 ${res.updated} 项`)
       setDraft({})
       queryClient.invalidateQueries({ queryKey: ['settings'] })
     },
@@ -78,7 +78,7 @@ export function ParametersPanel() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <div className="text-[16px] font-medium text-ink">{GROUPS.find((g) => g.key === group)?.label}</div>
-                <p className="mt-0.5 text-[13.5px] text-ink-3">修改即时生效，并写入操作日志。</p>
+                <p className="mt-0.5 text-[13.5px] text-ink-3">修改后按参数生效范围应用，并写入操作日志。</p>
               </div>
               <button
                 type="button"
@@ -104,7 +104,7 @@ export function ParametersPanel() {
 
             {group === 'RAG' && (
               <Alert tone="warn" className="mt-4">
-                修改切分默认值不影响已索引文档，需手动「重建索引」。
+                全局检索与切分参数作为新知识库默认值；已有知识库请在「编辑知识库」中修改配置。
               </Alert>
             )}
           </div>
@@ -152,6 +152,7 @@ function SettingField({
       ) : (
         <Input
           type={isNumber ? 'number' : 'text'}
+          disabled={item.key === 'rag.embedding.dimension'}
           step={item.valueType === 'DOUBLE' ? '0.05' : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}

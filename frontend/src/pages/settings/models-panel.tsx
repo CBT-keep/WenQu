@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { parseObject } from '@/lib/form-values'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PlugZap, Plus } from 'lucide-react'
 import { Tag } from '@/components/ui/tag'
@@ -201,6 +202,7 @@ function ModelFormModal({
   const pushToast = useToastStore((s) => s.push)
   const isEdit = !!model
   const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null)
+  const [extraParams, setExtraParams] = useState(JSON.stringify(model?.extraParams ?? {}))
   const [formError, setFormError] = useState<string | null>(null)
 
   const [form, setForm] = useState<ModelPayload>({
@@ -223,9 +225,10 @@ function ModelFormModal({
 
   const saveMut = useMutation({
     mutationFn: () => {
-      if (!isEdit) return createModel(form)
+      if (!isEdit) return createModel({ ...form, extraParams: parseObject(extraParams) })
       // type 不允许修改，提交时不出现在 payload
       const payload: ModelUpdatePayload = {
+        extraParams: parseObject(extraParams),
         name: form.name,
         provider: form.provider,
         baseUrl: form.baseUrl,
@@ -248,13 +251,14 @@ function ModelFormModal({
   })
 
   const testMut = useMutation({
-    mutationFn: () => (isEdit ? testModel(model!.id) : testModelDraft(form)),
+    mutationFn: () => (isEdit ? testModel(model!.id) : testModelDraft({ ...form, extraParams: parseObject(extraParams) })),
     onSuccess: (res) => setTestResult({ ok: res.success, detail: res.detail ?? `连通正常 · ${res.latencyMs}ms` }),
     onError: (e) => setTestResult({ ok: false, detail: toApiError(e).message }),
   })
 
   function submit() {
     setFormError(null)
+    try { parseObject(extraParams) } catch { setFormError('高级参数必须是合法的 JSON 对象'); return }
     if (!form.name.trim() || !form.baseUrl.trim() || !form.modelName.trim()) {
       setFormError('请填写名称、Base URL 与模型名')
       return
@@ -300,7 +304,7 @@ function ModelFormModal({
             <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="如：gpt-4o-mini" className={inputCls} />
           </Field>
           <Field label="类型" required hint={isEdit ? '类型不可修改' : undefined}>
-            <Select value={form.type} disabled={isEdit} onChange={(e) => set('type', e.target.value as ModelType)}>
+            <Select value={form.type} disabled={isEdit} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ModelType, dimension: e.target.value === 'EMBEDDING' ? (f.dimension ?? 1024) : undefined }))}>
               <option value="CHAT">CHAT — 对话</option>
               <option value="EMBEDDING">EMBEDDING — 向量化</option>
               <option value="RERANK">RERANK — 重排</option>
@@ -364,6 +368,7 @@ function ModelFormModal({
           </div>
         )}
 
+        {!isChat && <Field label="超时（ms）"><Input type="number" min={1} value={form.timeoutMs} onChange={(e) => set('timeoutMs', Number(e.target.value))} /></Field>}
         {isEmbedding && (
           <Field label="向量维度" required hint="须与全局维度 1024 一致，否则创建知识库时报 40006">
             <Input
@@ -385,6 +390,7 @@ function ModelFormModal({
         </div>
 
         {testResult && <Alert tone={testResult.ok ? 'success' : 'error'}>{testResult.detail}</Alert>}
+        <Field label="高级参数（JSON 对象）"><Input value={extraParams} onChange={(e) => setExtraParams(e.target.value)} /></Field>
         {formError && <Alert tone="error">{formError}</Alert>}
       </div>
     </Modal>

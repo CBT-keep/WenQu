@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import xyz.cbt.wenqu.backend.common.BizException;
+import xyz.cbt.wenqu.backend.modules.auth.dto.UpdateProfileDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.ChangePasswordDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.LoginDTO;
 import xyz.cbt.wenqu.backend.modules.auth.entity.LoginUser;
@@ -143,6 +144,20 @@ public class AuthServiceImpl implements AuthService {
         return authMapper.findUserById(userId).map(this::toUserVO).orElseThrow(BizException::badCredentials);
     }
 
+    /**
+     * 更新用户资料
+     */
+    @Override
+    @Transactional
+    public UserVO updateProfile(Long userId, UpdateProfileDTO dto) {
+        authMapper.findUserById(userId).orElseThrow(BizException::badCredentials);
+        authMapper.updateProfile(userId, dto.getNickname(), dto.getEmail());
+        return me(userId);
+    }
+
+    /**
+     * 修改密码
+     */
     @Override
     @Transactional
     public void changePassword(Long userId, ChangePasswordDTO dto) {

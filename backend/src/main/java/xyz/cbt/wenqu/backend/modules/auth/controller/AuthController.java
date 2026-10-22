@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import xyz.cbt.wenqu.backend.common.BizException;
 import xyz.cbt.wenqu.backend.common.Result;
 import xyz.cbt.wenqu.backend.common.log.OpLog;
+import xyz.cbt.wenqu.backend.modules.auth.dto.UpdateProfileDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.ChangePasswordDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.LoginDTO;
 import xyz.cbt.wenqu.backend.modules.auth.dto.RefreshDTO;
@@ -78,6 +79,15 @@ public class AuthController {
                                        @Valid @RequestBody ChangePasswordDTO dto) {
         authService.changePassword(currentUserId(authentication), dto);
         return Result.ok(null);
+    }
+
+    /**
+     * 修改本人资料
+     */
+    @OpLog(type = "Update", action = "修改本人资料", recordArgs = false)
+    @PutMapping("/me")
+    public Result<UserVO> updateProfile(Authentication authentication, @Valid @RequestBody UpdateProfileDTO dto) {
+        return Result.ok(authService.updateProfile(currentUserId(authentication), dto));
     }
 
     private Long currentUserId(Authentication authentication) {

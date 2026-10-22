@@ -8,6 +8,7 @@ export type SqlStatus = 'SUGGESTED' | 'VALIDATED' | 'REJECTED' | 'EXECUTED' | 'F
 export type ChartType = 'bar' | 'line' | 'pie' | 'table'
 
 export interface Datasource {
+  extraParams?: Record<string, unknown> | null
   id: number
   name: string
   host: string

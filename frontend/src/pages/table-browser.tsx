@@ -249,7 +249,7 @@ function TableDetailView({
                 </td>
                 <td className="px-4 py-2.5 text-ink-2">{c.columnComment || '—'}</td>
                 <td className="px-4 py-2.5">
-                  <Switch checked={c.enabled} onChange={() => undefined} aria-label="参与生成" className="opacity-70" />
+                  <span title="字段级编辑接口尚未提供；当前可在表级控制参与生成"><Switch checked={c.enabled} disabled onChange={() => undefined} aria-label="参与生成（只读）" /></span>
                 </td>
               </tr>
             ))}

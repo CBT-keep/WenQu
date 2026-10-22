@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { parseObject } from '@/lib/form-values'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Database, PlugZap, Plus, RefreshCw, Table2, Trash2 } from 'lucide-react'
@@ -232,13 +233,14 @@ function DatasourceFormModal({
     enabled: datasource?.enabled ?? true,
   })
   const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null)
+  const [extraParams, setExtraParams] = useState(JSON.stringify(datasource?.extraParams ?? {}))
   const [formError, setFormError] = useState<string | null>(null)
 
   const saveMut = useMutation({
     mutationFn: () =>
       isEdit
-        ? updateDatasource(datasource!.id, { ...form, password: form.password || undefined })
-        : createDatasource(form),
+        ? updateDatasource(datasource!.id, { ...form, extraParams: parseObject(extraParams), password: form.password || undefined })
+        : createDatasource({ ...form, extraParams: parseObject(extraParams) }),
     onSuccess: () => {
       pushToast(isEdit ? '已保存' : '数据源已创建，请同步 Schema')
       onSaved()
@@ -248,7 +250,7 @@ function DatasourceFormModal({
 
   const testMut = useMutation({
     mutationFn: () =>
-      isEdit && !form.password ? testDatasource(datasource!.id) : testDatasourceDraft(form),
+      isEdit && !form.password ? testDatasource(datasource!.id) : testDatasourceDraft({ ...form, extraParams: parseObject(extraParams) }),
     onSuccess: (res) =>
       setTestResult({ ok: res.success, detail: res.detail ?? `连接成功 · ${res.latencyMs}ms` }),
     onError: (e) => setTestResult({ ok: false, detail: toApiError(e).message }),
@@ -256,6 +258,7 @@ function DatasourceFormModal({
 
   function submit() {
     setFormError(null)
+    try { parseObject(extraParams) } catch { setFormError('高级参数必须是合法的 JSON 对象'); return }
     if (!form.name.trim() || !form.host.trim() || !form.databaseName.trim() || !form.username.trim()) {
       setFormError('请填写名称、主机、数据库与用户名')
       return
@@ -348,9 +351,12 @@ function DatasourceFormModal({
           <Switch checked={!!form.sslEnabled} onChange={(v) => set('sslEnabled', v)} aria-label="启用 SSL" />
         </div>
 
+        <Field label="执行超时（ms）"><Input type="number" min={1} value={form.timeoutMs} onChange={(e) => set('timeoutMs', Number(e.target.value))} /></Field>
+        <div className="flex items-center justify-between"><span>启用数据源</span><Switch checked={!!form.enabled} onChange={(v) => set('enabled', v)} aria-label="启用数据源" /></div>
         {testResult && (
           <Alert tone={testResult.ok ? 'success' : 'error'}>{testResult.detail}</Alert>
         )}
+        <Field label="高级参数（JSON 对象）"><Input value={extraParams} onChange={(e) => setExtraParams(e.target.value)} /></Field>
         {formError && <Alert tone="error">{formError}</Alert>}
       </div>
     </Modal>

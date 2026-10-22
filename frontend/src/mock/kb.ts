@@ -205,6 +205,7 @@ export function mockKbCreate(payload: KbCreatePayload): KnowledgeBase {
     bm25Weight: payload.bm25Weight ?? 0.4,
     chunkSize: payload.chunkSize ?? 800,
     chunkOverlap: payload.chunkOverlap ?? 120,
+    separators: payload.separators ?? ["\n\n", "\n", "。", "！", "？", "；", " ", ""],
     ownerId: 1,
     ownerName: 'admin',
     visibility: payload.visibility ?? 'PRIVATE',
@@ -224,7 +225,8 @@ export function mockKbUpdate(id: number, payload: KbUpdatePayload) {
   const needReindex =
     (payload.embeddingModelId !== undefined && payload.embeddingModelId !== kb.embeddingModelId) ||
     (payload.chunkSize !== undefined && payload.chunkSize !== kb.chunkSize) ||
-    (payload.chunkOverlap !== undefined && payload.chunkOverlap !== kb.chunkOverlap)
+    (payload.chunkOverlap !== undefined && payload.chunkOverlap !== kb.chunkOverlap) ||
+    (payload.separators !== undefined && JSON.stringify(payload.separators) !== JSON.stringify(kb.separators ?? ["\n\n", "\n", "。", "！", "？", "；", " ", ""]))
   Object.assign(kb, payload, { updatedAt: new Date().toISOString() })
   return { ...kb, needReindex }
 }

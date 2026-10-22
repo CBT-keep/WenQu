@@ -38,6 +38,10 @@ export function fetchMe(): Promise<UserInfo> {
   return unwrap(http.get<ApiResponse<UserInfo>>('/auth/me'))
 }
 
+export function updateProfile(payload: { nickname?: string; email?: string }): Promise<UserInfo> {
+  return unwrap(http.put<ApiResponse<UserInfo>>('/auth/me', payload))
+}
+
 /** PUT /auth/me/password —— doc/04 §3.6，改密成功后后端会吊销全部 refresh token */
 export function changePassword(payload: ChangePasswordRequest): Promise<null> {
   return unwrap(http.put<ApiResponse<null>>('/auth/me/password', payload))

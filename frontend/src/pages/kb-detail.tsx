@@ -47,6 +47,7 @@ import { btnGhost, btnPrimary, btnPrimarySm, inputCls, rowBtn, rowBtnDanger, tag
 import type { ChunkItem, DocumentItem, DocumentQuery, KbUpdatePayload, KnowledgeBase, RetrievalMode } from '@/types'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
+import { fetchModelOptions } from '@/api/model'
 
 const ACTIVE_DOC_STATUS = ['PENDING', 'PARSING', 'CHUNKING', 'EMBEDDING']
 
@@ -147,6 +148,7 @@ export default function KbDetailPage() {
   })
 
   function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: ['kbs'] })
     queryClient.invalidateQueries({ queryKey: ['docs', kbId] })
     queryClient.invalidateQueries({ queryKey: ['kb-stats', kbId] })
     queryClient.invalidateQueries({ queryKey: ['kb', kbId] })
@@ -201,7 +203,7 @@ export default function KbDetailPage() {
             <>
               <Button variant="outline" size="lg" onClick={() => setConfigOpen(true)}>
                 <Settings2 />
-                切分配置
+                编辑知识库
               </Button>
               <Button variant="outline" size="lg" onClick={() => setReindexOpen(true)}>
                 <RefreshCw />
@@ -537,7 +539,11 @@ function ConfigModal({
   onSaved: () => void
 }) {
   const pushToast = useToastStore((s) => s.push)
-  const [form, setForm] = useState({
+  const [initialForm] = useState({
+    embeddingModelId: kb.embeddingModelId,
+    rerankModelId: kb.rerankModelId ?? undefined,
+    name: kb.name,
+    description: kb.description ?? '',
     chunkSize: kb.chunkSize ?? 800,
     chunkOverlap: kb.chunkOverlap ?? 120,
     retrievalMode: kb.retrievalMode,
@@ -548,35 +554,102 @@ function ConfigModal({
     rerankEnabled: kb.rerankEnabled,
   })
 
+  const [form, setForm] = useState(initialForm)
+  const embeddingModels = useQuery({ queryKey: ['model-options', 'EMBEDDING'], queryFn: () => fetchModelOptions('EMBEDDING') })
+  const rerankModels = useQuery({ queryKey: ['model-options', 'RERANK'], queryFn: () => fetchModelOptions('RERANK') })
+  const [formError, setFormError] = useState<string | null>(null)
   const saveMut = useMutation({
-    mutationFn: () => updateKnowledgeBase(kb.id, form as KbUpdatePayload),
+    mutationFn: () => {
+      const changes: KbUpdatePayload = {}
+      for (const key of Object.keys(form) as (keyof typeof form)[]) {
+        const value = key === 'name' ? form.name.trim() : form[key]
+        if (value !== initialForm[key]) Object.assign(changes, { [key]: value })
+      }
+      return updateKnowledgeBase(kb.id, changes)
+    },
     onSuccess: (res) => {
       pushToast(res.needReindex ? '已保存；切分/模型变更需重建索引才生效' : '已保存')
       onSaved()
       onClose()
     },
-    onError: (e) => pushToast(toApiError(e).message),
+    onError: (e) => setFormError(toApiError(e).message),
   })
+
+  function submit() {
+    setFormError(null)
+    if (!form.name.trim() || form.name.trim().length > 128) {
+      setFormError('请输入知识库名称，最多 128 个字符')
+      return
+    }
+    if (form.description.length > 512) {
+      setFormError('描述最多 512 个字符')
+      return
+    }
+    try {
+      const advancedChanged = (Object.keys(form) as (keyof typeof form)[]).some((key) => key !== 'name' && key !== 'description' && form[key] !== initialForm[key])
+      if (advancedChanged) {
+      if (form.chunkSize <= 0 || form.chunkOverlap < 0 || form.chunkOverlap >= form.chunkSize) throw new Error('重叠必须非负且小于块大小')
+      if (form.rerankEnabled && !form.rerankModelId) throw new Error('请选择重排模型')
+      if (Math.abs(form.vectorWeight + form.bm25Weight - 1) > 0.000001) throw new Error('两项权重之和必须为 1')
+      if (kb.status === 'INDEXING' && (form.embeddingModelId !== kb.embeddingModelId || form.chunkSize !== (kb.chunkSize ?? 800) || form.chunkOverlap !== (kb.chunkOverlap ?? 120))) throw new Error('索引期间不能修改模型或切分参数')
+      }
+    } catch (e) { setFormError(e instanceof Error ? e.message : '配置无效'); return }
+    saveMut.mutate()
+  }
 
   return (
     <Modal
       open
       onClose={onClose}
-      title="切分与检索配置"
+      title="编辑知识库"
       width="max-w-[560px]"
       footer={
         <>
           <button type="button" className={btnGhost} onClick={onClose}>
             取消
           </button>
-          <button type="button" className={btnPrimary} disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+          <button type="button" className={btnPrimary} disabled={saveMut.isPending} onClick={submit}>
             保存
           </button>
         </>
       }
     >
+      <div className="mb-4 space-y-4">
+        <Field label="名称" required>
+          <Input
+            value={form.name}
+            maxLength={128}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          />
+        </Field>
+        <Field label="描述">
+          <Input
+            value={form.description}
+            maxLength={512}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          />
+        </Field>
+      </div>
+      <p className="mb-4 text-[13px] text-ink-3">文档会自动按段落和句子切分，通常无需调整处理参数。</p>
+      <details className="rounded-md border border-line p-3">
+        <summary className="cursor-pointer text-[14px] text-ink-2">高级设置</summary>
+        <div className="mt-4 space-y-4">
+        <Field label="文档向量模型">
+          <Select disabled={kb.status === 'INDEXING'} value={form.embeddingModelId} onChange={(e) => setForm((f) => ({ ...f, embeddingModelId: Number(e.target.value) }))}>
+            <option value={kb.embeddingModelId}>{kb.embeddingModelName ?? `当前模型 ${kb.embeddingModelId}`}</option>
+            {embeddingModels.data?.filter((m) => m.id !== kb.embeddingModelId).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="重排模型">
+          <Select value={form.rerankModelId ?? ''} onChange={(e) => setForm((f) => ({ ...f, rerankModelId: Number(e.target.value) || undefined }))}>
+            <option value="">请选择</option>
+            {kb.rerankModelId && !rerankModels.data?.some((m) => m.id === kb.rerankModelId) && <option value={kb.rerankModelId}>当前模型 {kb.rerankModelId}</option>}
+            {rerankModels.data?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </Select>
+        </Field>
+      </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="块大小（tokens）">
+        <Field label="每段长度（tokens）">
           <Input
             type="number"
             value={form.chunkSize}
@@ -584,7 +657,7 @@ function ConfigModal({
             className={inputCls}
           />
         </Field>
-        <Field label="重叠">
+        <Field label="相邻段落重叠长度">
           <Input
             type="number"
             value={form.chunkOverlap}
@@ -592,7 +665,7 @@ function ConfigModal({
             className={inputCls}
           />
         </Field>
-        <Field label="召回 TopK">
+        <Field label="参考片段数量">
           <Input
             type="number"
             value={form.topK}
@@ -636,7 +709,7 @@ function ConfigModal({
               className={inputCls}
             />
           </Field>
-          <Field label="BM25 权重">
+          <Field label="关键词检索权重">
             <Input
               type="number"
               step="0.1"
@@ -658,8 +731,10 @@ function ConfigModal({
       </div>
 
       <Alert tone="warn" className="mt-4">
-        修改块大小 / 重叠会使已索引分片失效，需手动「重建索引」后生效（doc/04 §5.3）。
+        修改文档向量模型或切分参数后，需要重新处理文档。
       </Alert>
+      </details>
+      {formError && <Alert tone="error" className="mt-4">{formError}</Alert>}
     </Modal>
   )
 }

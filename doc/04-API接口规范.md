@@ -161,7 +161,7 @@
 | | | `40004` | 文件超出大小/数量限制 |
 | | | `40005` | 向量化失败 |
 | | | `40006` | 向量维度不匹配 |
-| | | `40007` | 对象存储操作失败 |
+| | | `40007` | 文件存储操作失败 |
 | | | `40008` | 分片不存在 |
 | 50xxx | 问答 | `50001` | 会话不存在 |
 | | | `50002` | 对话生成失败 |
@@ -300,6 +300,7 @@ while (true) {
 >
 > **归属校验口径**：知识库 / 文档 / 会话 —— `ADMIN`/`SUPERADMIN` 全可见，`USER` 仅本人；
 > **数据源（含连接信息，敏感）** —— 仅 `SUPERADMIN` 全可见，`ADMIN`/`USER` 仅本人。
+> SQL 会话的历史查看/删除遵循会话权限；继续提问、手工执行、EXPLAIN、导出及样例读取必须另外校验数据源权限（包括 ADMIN）。新建会话须校验其数据源和口径库；RAG 会话绑定与每次覆盖 `kbIds` 均逐个校验知识库权限。`messageId` 回填须校验消息所属会话权限及其数据源与请求一致，不能仅凭 ID 修改。
 
 ## Auth
 
@@ -380,6 +381,7 @@ while (true) {
 | DELETE | `/conversations/{id}` | 🔑👤 | 删除会话 |
 | GET | `/conversations/{id}/messages` | 🔑👤 | 消息列表（分页） |
 | POST | `/conversations/{id}/messages` | 🔑👤⚡ | 发送消息（SSE） |
+| POST | `/conversations/{id}/messages/{messageId}/regenerate` | 🔑👤⚡ | 重新生成最后一条回答 |
 | POST | `/conversations/{id}/stop` | 🔑👤 | 停止生成 |
 | PUT | `/messages/{messageId}/feedback` | 🔑👤 | 消息反馈点赞/点踩 |
 
@@ -526,6 +528,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 { "nickname": "超级管理员", "email": "admin@example.com" }
 ```
 
+本人资料更新只接受 `nickname`（最长 64）与 `email`（合法邮箱、最长 128）；缺省或 null 保留旧值，空字符串表示清空。成功返回完整当前用户对象；用户 ID 从认证上下文取得，不能修改角色、状态或其他用户资料。前端入口为侧栏当前用户 → 个人资料，修改密码仍可从该弹窗进入。
+
 ## 3.6 修改本人密码
 
 `PUT /api/v1/auth/me/password` · 🔑
@@ -624,7 +628,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 |---|---|
 | `GET /users/{id}` | 返回单个用户对象 |
 | `PUT /users/{id}` | 请求体同创建但无 `password` / `mustChangePassword`（`username` 不可改）；`role` 仅 `USER` / `ADMIN`，不可晋升 `SUPERADMIN` |
-| `DELETE /users/{id}` | 物理删除；其创建的知识库/数据源/会话一并删除（FK CASCADE）；`70002` 不可删自己 |
+| `DELETE /users/{id}` | 物理删除；仍被知识库/文档/数据源/会话或其他外键引用时返回 `10004`，先清理引用资源；本期不提供资源归属转移；`70002` 不可删自己 |
 | `PUT /users/{id}/status` | `{ "status": "DISABLED" }`；禁用后该用户所有 refreshToken 吊销 |
 | `PUT /users/{id}/password` | `{ "newPassword": "Temp@2026" }`（可空 → 随机临时密码）；重置后 `mustChangePassword=true`，返回新密码明文一次 |
 
@@ -737,7 +741,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 }
 ```
 
-失败：`30002`，`data` 含 `error` 明细。
+失败：`30002`，`data=null`，脱敏错误明细放入 `message`。
 
 - CHAT：发送 `"ping"`，期望返回文本。
 - EMBEDDING：对 `"ping"` 求向量，校验返回维度 == 配置维度，否则 `40006`。
@@ -813,7 +817,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | `rerankEnabled` | bool | 否 | 默认 false |
 | `topK` | int | 否 | 默认取系统参数 |
 | `scoreThreshold` | number | 否 | 默认取系统参数 |
-| `visibility` | string | 否 | 默认 `PRIVATE` |
+| `visibility` | string | 否 | 仅允许 `PRIVATE`；`PUBLIC` 返回 `10001`，本期不开放共享 |
 
 ```json
 { "name": "业务指标口径库", "description": "指标定义与计算口径",
@@ -826,9 +830,34 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 | 接口 | 说明 |
 |---|---|
-| `GET /knowledge-bases/{kbId}` | 详见 5.1 `records[0]` 结构 |
-| `PUT /knowledge-bases/{kbId}` | 字段同创建均可选。**修改 `embeddingModelId` 或 `chunkSize/overlap/separators` 会使已索引分片失效**，响应 `data` 中返回 `needReindex: true` 提示；不自动重建 |
+| `GET /knowledge-bases/{kbId}` | 返回 §5.1 单条结构，并必填返回 `chunkSize`、`chunkOverlap`、`separators`，详见下方详情契约 |
+| `PUT /knowledge-bases/{kbId}` | 字段同创建均可选；合并旧值后整体校验。索引相关配置实际变化时按下方规则处理；返回完整详情对象及必填 `needReindex`，不自动重建 |
 | `DELETE /knowledge-bases/{kbId}` | 级联删除文档与分片，并异步删除本地文件；删除失败由孤儿文件清理任务兜底；`INDEXING` 状态下拒绝，返回 `10004` |
+
+### 5.3.1 详情与更新的完整契约
+
+**前端交互原则**：编辑弹窗默认只展示名称、描述；模型与检索/切分参数收进默认折叠的「高级设置」。分隔符由系统自动采用默认策略，普通用户界面不提供 JSON 编辑；接口保留 separators 供受控配置使用。更新请求仅提交实际变化的字段，隐藏参数保持原值，不能因编辑名称而重置配置。接口支持字段不要求全部直接暴露为表单控件。
+
+详情 `data` = §5.1 的全部字段 + `chunkSize: int`、`chunkOverlap: int`、`separators: string[]`、`needReindex: boolean`。切分配置从数据库读取，以上字段均不可缺省；前端不得用默认值覆盖未知的现有配置。列表可以不包含切分字段。
+
+更新成功为 HTTP 200，`data` = 完整详情对象 + 必填 `needReindex: boolean`。例如（其余详情字段同 GET，实际响应不得省略）：
+
+```ts
+type KnowledgeBaseDetail = KnowledgeBaseListItem & {
+  chunkSize: number;
+  chunkOverlap: number;
+  separators: string[];
+  needReindex: boolean;
+};
+type KnowledgeBaseUpdateResult = KnowledgeBaseDetail & { needReindex: boolean };
+```
+
+- `ownerId` 只读，由服务端取当前用户；创建/更新传入 `ownerId` 返回 `10001`。本期不支持转移归属。
+- PUT 中缺省字段保留旧值；显式 `null` 仅允许清空 `description`、`rerankModelId`，其余非空字段拒绝 null。先合并数据库当前值，再整体校验：`chunkSize > 0`、`0 <= chunkOverlap < chunkSize`、权重各在 `[0,1]` 且和为 1、`topK > 0`、阈值在 `[0,1]`、分隔符为非空字符串数组（允许最后一个元素为空串）、重排开启时必须绑定启用的 RERANK 模型，embedding 必须是启用的 1024 维 EMBEDDING 模型。失败返回 `10001`（维度错误 `40006`）。
+- `INDEXING` 时允许修改名称、描述和检索参数；拒绝实际改变 `embeddingModelId/chunkSize/chunkOverlap/separators`，返回 `10004`。任务领取与配置更新共用知识库行锁，避免检查后状态变化。
+- `needReindex` 表示当前已有分片与配置不一致，GET 详情也必填返回该字段。只有 `embeddingModelId/chunkSize/chunkOverlap/separators` 的实际值变化使现有分片失效；未改变值或仅改名称、描述、检索参数不新增失效。已处于失效状态时继续返回 true；没有分片时为 false。
+- 同维度不代表同向量空间：允许修改 embedding 模型，但有旧分片时必须原子标记 `index_stale=true`；失效库的检索、RAG 和口径检索均返回 `10004`，直到全部现存文档按新配置成功重建。修改同一模型记录的 `modelName/baseUrl/extraParams` 也应使其绑定库失效；被 INDEXING 库引用时拒绝此类修改。仅轮换 API Key 不使索引失效。
+- 重建运行状态仍使用 EMPTY/INDEXING/READY；`index_stale` 独立持久化，重建失败不能清除。失效时拒绝 `onlyFailed=true`，避免只重建部分文档就恢复服务。非失效库修改配置后是否主动重建由用户决定。
 
 ## 5.4 知识库统计
 
@@ -857,7 +886,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | `query` | string | ✅ | — | 查询语句 |
 | `topK` | int | 否 | 库配置 | 召回条数 |
 | `mode` | string | 否 | 库配置 | `HYBRID`/`VECTOR`/`BM25` |
-| `scoreThreshold` | number | 否 | 库配置 | 相似度阈值 |
+| `scoreThreshold` | number | 否 | 库配置 | 仅作用于向量支路余弦相似度；BM25 模式忽略，不过滤 RRF 或重排分数 |
 | `vectorWeight` / `bm25Weight` | number | 否 | 库配置 | 覆盖权重 |
 | `rerankEnabled` | bool | 否 | 库配置 | 是否重排 |
 | `rerankCandidates` | int | 否 | 20 | 重排候选数 |
@@ -905,7 +934,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `onlyFailed` | bool | false | 仅重建 FAILED 文档 |
-| `resetMode` | string | `REPLACE` | `REPLACE` 先删旧分片；`APPEND` 保留 |
+| `resetMode` | string | `REPLACE` | 仅允许 `REPLACE`，先删旧分片；`APPEND` 返回 `10001`，避免重复分片及序号冲突 |
 
 **响应 202**
 
@@ -985,7 +1014,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 6.4 删除文档
 
-`DELETE /api/v1/documents/{docId}` · 🔑👤 · 级联删分片，异步删对象；`200` + `data:null`。
+`DELETE /api/v1/documents/{docId}` · 🔑👤 · 运行中文档拒绝删除（`10004`）；其余级联删分片，提交后异步删本地文件；`200` + `data:null`。
 
 ## 6.5 重建 / 重试
 
@@ -1006,7 +1035,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | `Content-Disposition` | `attachment; filename*=UTF-8''<urlencoded 原始文件名>` |
 | `Content-Length` | 文件字节数 |
 
-错误码：`40404` 文档不存在 / 文件已丢失；`40301` 无权限（非本人且非 ADMIN）。
+错误：HTTP `404` + `10002` 文档不存在或文件已丢失；HTTP `403` + `20006` 无权限。ADMIN / SUPERADMIN 可访问全部文档。
 
 > **为什么不再返回预签名 URL**：MinIO 已废弃，本地文件存储无法生成可公开访问的外链。
 > 改为后端鉴权后流式返回，反而更安全 —— 预签名 URL 任何人拿到都能下载、绕过了归属校验，
@@ -1174,6 +1203,10 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 ```
 
 **响应 200**：`data: { "stopped": true }`；服务端中断 SSE 并发送 `done{finishReason:"abort"}`，已生成部分内容落库。
+
+### 7.6.1 重新生成
+
+`POST /api/v1/conversations/{id}/messages/{messageId}/regenerate` · 🔑👤⚡。仅允许重新生成会话最后一条 assistant 回答，且无运行中生成任务，否则 `10004`。复用原 user 问题、不新增 user 消息；创建新的 assistant 消息并保留原回答，返回与 §7.5 相同 SSE。新消息保存 `regenerates_message_id`；后续上下文只采用该问题最新一次成功回答，失败或中止不替换原回答。调用时重新校验模型、知识库和索引有效性。
 
 ## 7.7 消息反馈
 
@@ -1363,7 +1396,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 { "enabled": false, "tableComment": "（手工）销售订单主表——勿用旧字段 amount" }
 ```
 
-> 关闭 `enabled` 后该表不进入 NL2SQL 的 Schema 提示词。
+> 关闭 `enabled` 后该表不进入 NL2SQL 的 Schema 提示词。字段级 enabled 目前只读，本期通过表级开关控制；没有字段更新接口时前端不得展示可操作的字段开关。
 
 ## 8.11 样例行
 
@@ -1452,6 +1485,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 }
 ```
 
+> 历史表格使用消息 `resultRows`（二维数组）恢复，最多保存执行时实际返回的截断结果；不自动重跑 SQL。`resultMeta` 保存列信息、条数与截断标记，`resultRows=null` 表示未执行或结果已按保留策略清理。导出接口会重新执行 SQL，结果可能与历史不同，前端须明确提示。
+
 ## 8.15 自然语言查询（SSE 流式）
 
 `POST /api/v1/sqlbot/conversations/{id}/messages` · 🔑👤⚡
@@ -1463,7 +1498,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 | `content` | string | ✅ | 自然语言查询描述 |
 | `stream` | bool | 否 | 默认 true |
 | `execute` | bool | 否 | 默认 true；false 时只生成 SQL 不执行（供人工确认后再调 8.16） |
-| `maxRows` | int | 否 | 覆盖数据源默认上限 |
+| `maxRows` | int | 否 | 覆盖数据源默认值，必须为正且不超过系统 `sqlbot.max-rows` 上限 |
 
 ```json
 { "content": "查一下 9 月份各区域的销售额排名，前 5 名，配上图表", "execute": true }
@@ -1494,7 +1529,7 @@ event: done
 data: {"messageId":205}
 ```
 
-**`execute=false` 时**：仅到 `sql` 事件结束（`sqlStatus=SUGGESTED`），前端展示 SQL 与"执行"按钮。
+**`execute=false` 时**：发送 `meta` →（可选 `reasoning`）→ `sql` → `done`（`sqlStatus=SUGGESTED`），前端展示 SQL 与"执行"按钮。
 
 **错误**：`60005` SQL 安全校验不通过；`60006` 执行超时；`60004` 语法错误；`60002` 数据源连接失败（均以 `event: error` 返回）。
 
@@ -1593,7 +1628,15 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
 ```
 
 **响应 200**：`data: { "updated": 2 }`。非法值 `70001`；每次变更写入操作日志（`type=SYSTEM`）。
-> 参数变更**即时生效**（后端内存缓存刷新），无需重启。
+> 生效范围见下表；参数更新需原子校验关联项，失败时整批回滚，不得接受未知 key。
+
+| 参数 | 生效范围 |
+|---|---|
+| `rag.retrieval.vector-weight/bm25-weight/top-k/score-threshold`、`rag.chunk.*` | 创建知识库时的默认值；不覆盖已有库配置，已有库通过 §5.3 更新 |
+| `rag.retrieval.rerank-candidates`、上传限制、SQL 执行限制、登录限流、日志保留 | 提交后对新请求/任务生效；运行中任务使用启动时快照；SQL 系统限制为硬上限 |
+| `sqlbot.pool-size` | 新建或重建连接池时生效，现有连接池平滑回收 |
+| `jwt.*` | 新签发令牌生效，已有令牌不因 TTL 调整而延长或缩短 |
+| `rag.embedding.dimension` | 只读固定 1024，更新返回 `70001`；调整须新迁移、重建向量和索引 |
 
 ## 9.3 操作日志
 
@@ -1722,4 +1765,5 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1 | 2026-10-11 | 初稿，覆盖全部端点与统一约定 |
+| v3 | 2026-10-22 | 审查修订：知识库完整详情/更新、索引失效、权限隔离、删除、评分、SSE 与参数生效契约；新增行为待实现 |
 | v2 | 2026-10-13 | 文件存储由 MinIO 改为本地文件系统：§6.6 下载接口改为后端鉴权流式返回（不再返回预签名 URL）；§5.3 删除知识库改为异步删本地文件；§9.7 健康组件 `MinIO` 改为 `LocalStorage` |
