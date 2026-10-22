@@ -1,6 +1,7 @@
 package xyz.cbt.wenqu.backend.common;
 
 import lombok.Getter;
+import org.aspectj.bridge.Message;
 
 /**
  * 业务异常：携带业务错误码与对应的 HTTP 状态码，
@@ -64,5 +65,15 @@ public class BizException extends RuntimeException {
 
     public static BizException forbiddenResource() {
         return new BizException(ErrorCode.FORBIDDEN_RESOURCE, "无权访问该知识库", 403);
+    }
+
+    public static BizException resourceConflict() {
+        return new BizException(ErrorCode.RESOURCE_CONFLICT, "资源冲突(名称重复等)", 409);
+    }
+    public static BizException modelDefaultExists() {
+        return new BizException(ErrorCode.MODEL_DEFAULT_EXISTS, "该类型已存在默认模型", 200);
+    }
+    public static BizException internalError(String message){
+        return new BizException(ErrorCode.INTERNAL_ERROR, message,500);
     }
 }

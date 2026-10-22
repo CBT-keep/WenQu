@@ -10,4 +10,19 @@ import java.util.List;
 @Mapper
 public interface ModelsMapper {
     List<LlmModel> search(@Param("type") String type, @Param("enabled") Boolean enabled);
+
+    /**
+     * 名称重复校验
+     */
+    long countByName(@Param("name") String name);
+
+    /**
+     * 同类型默认模型校验
+     */
+    long countDefaultByType(@Param("type") String type);
+
+    /**
+     * 新增模型，回填自增 id
+     */
+    int insert(LlmModel model);
 }

@@ -1,6 +1,7 @@
 package xyz.cbt.wenqu.backend.modules.models.service;
 
 import jakarta.validation.Valid;
+import xyz.cbt.wenqu.backend.modules.models.dto.ModelCreateDTO;
 import xyz.cbt.wenqu.backend.modules.models.dto.ModelQueryDTO;
 import xyz.cbt.wenqu.backend.modules.models.vo.ModelVO;
 
@@ -12,4 +13,9 @@ public interface ModelsService {
      * 模型列表
      */
     List<ModelVO> list(@Valid ModelQueryDTO query);
+
+    /**
+     * 新增模型
+     */
+    ModelVO create(ModelCreateDTO dto);
 }
