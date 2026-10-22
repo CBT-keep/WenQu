@@ -65,4 +65,11 @@ public class BizException extends RuntimeException {
     public static BizException forbiddenResource() {
         return new BizException(ErrorCode.FORBIDDEN_RESOURCE, "无权访问该知识库", 403);
     }
+
+    /**
+     * 操作不允许（doc/04 §1.5 的 10004）：如索引中的知识库不可删除（doc/04 §5.3）
+     */
+    public static BizException operationNotAllowed(String message) {
+        return new BizException(ErrorCode.OPERATION_NOT_ALLOWED, message, 200);
+    }
 }

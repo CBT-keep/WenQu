@@ -33,6 +33,7 @@ public class KnowledgeBaseService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final Set<String> STATUSES = Set.of("PENDING", "PARSING", "CHUNKING", "EMBEDDING", "READY", "FAILED");
     private static final Set<String> KNOWLEDGE_BASE_STATUSES = Set.of("EMPTY", "INDEXING", "READY");
+    private static final String STATUS_INDEXING = "INDEXING";
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_SUPERADMIN = "SUPERADMIN";
     private final KnowledgeBaseMapper mapper;
@@ -175,6 +176,20 @@ public class KnowledgeBaseService {
         patch.setRerankEnabled(dto.getRerankEnabled());
         patch.setVisibility(dto.getVisibility());
         return patch;
+    }
+
+    /**
+     * 删除知识库：索引中拒绝删除；文档与分片由外键级联清理。
+     */
+    @Transactional
+    public void delete(long kbId, Authentication authentication) {
+        requireAccessible(kbId, authentication);
+        KnowledgeBaseDetailProjection current = mapper.findById(kbId)
+                .orElseThrow(BizException::knowledgeBaseNotFound);
+        if (STATUS_INDEXING.equals(current.status())) {
+            throw BizException.operationNotAllowed("知识库正在建索引，请完成后再删除");
+        }
+        mapper.deleteById(kbId);
     }
 
     /**
