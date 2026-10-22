@@ -7,18 +7,25 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import xyz.cbt.wenqu.backend.common.BizException;
+import xyz.cbt.wenqu.backend.common.ErrorCode;
 import xyz.cbt.wenqu.backend.common.PageResult;
 import xyz.cbt.wenqu.backend.modules.auth.entity.LoginUser;
 import xyz.cbt.wenqu.backend.modules.kb.dto.DocumentListQueryDTO;
 import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseQueryDTO;
+import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseUpdateDTO;
+import xyz.cbt.wenqu.backend.modules.kb.entity.KnowledgeBase;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseMapper;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection;
+import xyz.cbt.wenqu.backend.modules.kb.mapper.EmbeddingModelCheckProjection;
+import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseDetailProjection;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseUpdateVO;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -109,5 +116,100 @@ public class KnowledgeBaseService {
             throw BizException.forbiddenResource();
         }
         return loginUser;
+    }
+
+    /**
+     * 更新知识库，字段均可选，不传表示不修改。
+     * 改动 embedding 模型或切分配置会使已索引分片失效，返回 needReindex=true 提示，不自动重建。
+     */
+    @Transactional
+    public KnowledgeBaseUpdateVO update(long kbId, KnowledgeBaseUpdateDTO dto, Authentication authentication) {
+        requireAccessible(kbId, authentication);
+        KnowledgeBaseDetailProjection current = mapper.findById(kbId)
+                .orElseThrow(BizException::knowledgeBaseNotFound);
+
+        boolean touchedIndex = isIndexTouching(dto, current);
+
+        // chunkOverlap 必须 < chunkSize；未传的项沿用现值后再校验，
+        // 否则只改 chunkSize 时会让 overlap >= size 落库，被数据库 CHECK 约束拒绝并冒成 500
+        int chunkSize = dto.getChunkSize() != null ? dto.getChunkSize() : current.chunkSize();
+        int chunkOverlap = dto.getChunkOverlap() != null ? dto.getChunkOverlap() : current.chunkOverlap();
+        if (chunkOverlap < 0 || chunkOverlap >= chunkSize) {
+            throw BizException.badRequest("chunkOverlap 必须小于 chunkSize");
+        }
+
+        // 启用重排时 rerankModelId 必填（doc/04 §5.2）
+        if (Boolean.TRUE.equals(dto.getRerankEnabled()) && dto.getRerankModelId() == null) {
+            throw BizException.badRequest("启用重排时必须指定 rerankModelId");
+        }
+
+        // embedding 模型：必须是 EMBEDDING 且维度 == 全局维度，否则 40006（doc/04 §5.2）
+        if (dto.getEmbeddingModelId() != null && !dto.getEmbeddingModelId().equals(current.embeddingModelId())) {
+            requireUsableEmbeddingModel(dto.getEmbeddingModelId());
+        }
+
+        KnowledgeBase patch = new KnowledgeBase();
+        patch.setId(kbId);
+        patch.setName(trimToNull(dto.getName()));
+        patch.setDescription(dto.getDescription());
+        patch.setEmbeddingModelId(dto.getEmbeddingModelId());
+        patch.setRerankModelId(dto.getRerankModelId());
+        patch.setChunkSize(dto.getChunkSize());
+        patch.setChunkOverlap(dto.getChunkOverlap());
+        patch.setSeparators(dto.getSeparators() == null ? null : toJsonArray(dto.getSeparators()));
+        patch.setRetrievalMode(dto.getRetrievalMode());
+        patch.setVectorWeight(dto.getVectorWeight());
+        patch.setBm25Weight(dto.getBm25Weight());
+        patch.setTopK(dto.getTopK());
+        patch.setScoreThreshold(dto.getScoreThreshold());
+        patch.setRerankEnabled(dto.getRerankEnabled());
+        patch.setVisibility(dto.getVisibility());
+        mapper.update(patch);
+
+        return new KnowledgeBaseUpdateVO(touchedIndex);
+    }
+
+    /**
+     * 判断本次更新是否真的改动了已索引的数据：embedding 模型或切分配置。
+     * 必须与当前值比对 —— 前端会整包回传切分配置，仅凭「传了该字段」会把原值回传也当成改动，
+     * 导致未做任何修改却提示需要重建索引。
+     */
+    private boolean isIndexTouching(KnowledgeBaseUpdateDTO dto, KnowledgeBaseDetailProjection current) {
+        return (dto.getEmbeddingModelId() != null && !dto.getEmbeddingModelId().equals(current.embeddingModelId()))
+                || (dto.getChunkSize() != null && !dto.getChunkSize().equals(current.chunkSize()))
+                || (dto.getChunkOverlap() != null && !dto.getChunkOverlap().equals(current.chunkOverlap()))
+                || dto.getSeparators() != null;
+    }
+
+    /**
+     * 校验 embedding 模型：必须是 EMBEDDING 且维度等于全局维度，否则 40006（doc/04 §5.2）
+     */
+    private void requireUsableEmbeddingModel(long modelId) {
+        EmbeddingModelCheckProjection model = mapper.findEmbeddingModelCheck(modelId);
+        if (model == null || !"EMBEDDING".equals(model.type())) {
+            throw new BizException(ErrorCode.EMBEDDING_DIMENSION_MISMATCH,
+                    "embeddingModelId 必须是 EMBEDDING 类型的模型", 200);
+        }
+        if (model.dimension() == null || model.globalDimension() == null
+                || !model.globalDimension().equals(model.dimension())) {
+            throw new BizException(ErrorCode.EMBEDDING_DIMENSION_MISMATCH, "向量维度不匹配", 200);
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * 分隔符数组转 JSON 字面量，由 SQL 侧 CAST(... AS jsonb) 落库
+     */
+    private static String toJsonArray(List<String> separators) {
+        return separators.stream()
+                .map(s -> "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                .collect(Collectors.joining(",", "[", "]"));
     }
 }

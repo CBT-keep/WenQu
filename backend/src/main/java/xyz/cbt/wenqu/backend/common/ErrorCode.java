@@ -17,6 +17,7 @@ public final class ErrorCode {
     public static final int BAD_REQUEST = 40000;        // 参数不合法
     public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在
     public static final int FORBIDDEN_RESOURCE = 40301;   // 无权访问资源
+    public static final int EMBEDDING_DIMENSION_MISMATCH = 40006; // 向量维度不匹配（doc/04 §1.5）
     public static final int INTERNAL_ERROR = 50000;     // 服务器内部错误
 
     private ErrorCode() {

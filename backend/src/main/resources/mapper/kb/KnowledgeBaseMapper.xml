@@ -63,4 +63,40 @@
     WHERE k.id = #{kbId}
   </select>
 
+  <!-- 只更新传入的非 null 字段；updated_at 由触发器维护，不在此写入。
+       调用方需保证至少有一个字段，否则 <set> 为空会产生 "UPDATE ... WHERE" 语法错误。 -->
+  <update id="update">
+    UPDATE kb_knowledge_base
+    <set>
+      <if test="name != null">name = #{name},</if>
+      <if test="description != null">description = #{description},</if>
+      <if test="embeddingModelId != null">embedding_model_id = #{embeddingModelId},</if>
+      <if test="rerankModelId != null">rerank_model_id = #{rerankModelId},</if>
+      <if test="chunkSize != null">chunk_size = #{chunkSize},</if>
+      <if test="chunkOverlap != null">chunk_overlap = #{chunkOverlap},</if>
+      <if test="separators != null">separators = CAST(#{separators} AS jsonb),</if>
+      <if test="retrievalMode != null">retrieval_mode = #{retrievalMode},</if>
+      <if test="vectorWeight != null">vector_weight = #{vectorWeight},</if>
+      <if test="bm25Weight != null">bm25_weight = #{bm25Weight},</if>
+      <if test="topK != null">top_k = #{topK},</if>
+      <if test="scoreThreshold != null">score_threshold = #{scoreThreshold},</if>
+      <if test="rerankEnabled != null">rerank_enabled = #{rerankEnabled},</if>
+      <if test="visibility != null">visibility = #{visibility},</if>
+      <if test="name == null and description == null and embeddingModelId == null and rerankModelId == null
+                and chunkSize == null and chunkOverlap == null and separators == null and retrievalMode == null
+                and vectorWeight == null and bm25Weight == null and topK == null and scoreThreshold == null
+                and rerankEnabled == null and visibility == null">id = id,</if>
+    </set>
+    WHERE id = #{id}
+  </update>
+
+  <!-- 一次取回模型类型/维度与全局维度，避免两次往返 -->
+  <select id="findEmbeddingModelCheck" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.EmbeddingModelCheckProjection">
+    SELECT m.type AS "type", m.dimension AS "dimension",
+           (SELECT CAST(s.value AS int) FROM sys_setting s
+             WHERE s.key = 'rag.embedding.dimension') AS "globalDimension"
+    FROM llm_model m
+    WHERE m.id = #{modelId} AND m.enabled = true
+  </select>
+
 </mapper>
