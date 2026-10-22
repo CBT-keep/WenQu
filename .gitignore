@@ -19,6 +19,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# pnpm 本地包缓存（SQLite 索引、WAL、项目软链）——每台机器各自生成，不入库
+.pnpm-store/
+
 # 日志
 *.log
 
