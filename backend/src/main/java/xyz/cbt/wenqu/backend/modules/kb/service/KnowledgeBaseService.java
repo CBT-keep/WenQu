@@ -10,9 +10,12 @@ import xyz.cbt.wenqu.backend.common.BizException;
 import xyz.cbt.wenqu.backend.common.PageResult;
 import xyz.cbt.wenqu.backend.modules.auth.entity.LoginUser;
 import xyz.cbt.wenqu.backend.modules.kb.dto.DocumentListQueryDTO;
+import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseListQueryDTO;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseMapper;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection;
+import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
 
 import java.util.List;
 import java.util.Set;
@@ -22,6 +25,7 @@ import java.util.Set;
 public class KnowledgeBaseService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final Set<String> STATUSES = Set.of("PENDING", "PARSING", "CHUNKING", "EMBEDDING", "READY", "FAILED");
+    private static final Set<String> KB_STATUSES = Set.of("EMPTY", "INDEXING", "READY");
     private final KnowledgeBaseMapper mapper;
 
     @Transactional(readOnly = true)
@@ -45,7 +49,7 @@ public class KnowledgeBaseService {
         if (ownerId == null) throw BizException.knowledgeBaseNotFound();
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
         String role = loginUser.getUser().getRole();
-        if (!"ADMIN".equals(role) && !"SUPERADMIN".equals(role) && !ownerId.equals(loginUser.getUserId())) {
+        if (!isAdmin(role) && !ownerId.equals(loginUser.getUserId())) {
             throw BizException.forbiddenResource();
         }
         String kw = keyword == null || keyword.isBlank() ? null : keyword.trim();
@@ -57,5 +61,41 @@ public class KnowledgeBaseService {
                     .stream().map(DocumentListVO::from).toList();
             return PageResult.of(page, size, result.getTotal(), records);
         }
+    }
+
+    /**
+     * 知识库列表：USER 仅本人，ADMIN / SUPERADMIN 可见全部；ownerId 仅对管理角色生效
+     */
+    @Transactional(readOnly = true)
+    public PageResult<KnowledgeBaseListVO> listKnowledgeBases(KnowledgeBaseListQueryDTO query,
+                                                              Authentication authentication) {
+        int page = query.getPage();
+        int size = query.getSize();
+
+        if (page < 1 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw BizException.badRequest("page 或 size 参数不合法(size 最大为 100)");
+        }
+        String normalizedStatus = query.getStatus() == null || query.getStatus().isBlank()
+                ? null : query.getStatus().trim().toUpperCase();
+        if (normalizedStatus != null && !KB_STATUSES.contains(normalizedStatus)) {
+            throw BizException.badRequest("知识库状态不合法");
+        }
+        String kw = query.getKeyword() == null || query.getKeyword().isBlank() ? null : query.getKeyword().trim();
+
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        Long ownerId = isAdmin(loginUser.getUser().getRole()) ? query.getOwnerId() : loginUser.getUserId();
+        if (ownerId != null && ownerId <= 0) {
+            throw BizException.badRequest("ownerId 参数不合法");
+        }
+
+        try (Page<KnowledgeBaseListProjection> result = PageHelper.startPage(page, size)) {
+            List<KnowledgeBaseListVO> records = mapper.searchKnowledgeBases(ownerId, kw, normalizedStatus)
+                    .stream().map(KnowledgeBaseListVO::from).toList();
+            return PageResult.of(page, size, result.getTotal(), records);
+        }
+    }
+
+    private static boolean isAdmin(String role) {
+        return "ADMIN".equals(role) || "SUPERADMIN".equals(role);
     }
 }
