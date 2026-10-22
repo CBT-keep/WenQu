@@ -26,6 +26,8 @@ public class KnowledgeBaseService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final Set<String> STATUSES = Set.of("PENDING", "PARSING", "CHUNKING", "EMBEDDING", "READY", "FAILED");
     private static final Set<String> KNOWLEDGE_BASE_STATUSES = Set.of("EMPTY", "INDEXING", "READY");
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_SUPERADMIN = "SUPERADMIN";
     private final KnowledgeBaseMapper mapper;
 
     /**
@@ -80,13 +82,7 @@ public class KnowledgeBaseService {
         if (normalizedStatus != null && !STATUSES.contains(normalizedStatus)) {
             throw BizException.badRequest("文档状态不合法");
         }
-        Long ownerId = mapper.findKnowledgeBaseOwner(kbId);
-        if (ownerId == null) throw BizException.knowledgeBaseNotFound();
-        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
-        String role = loginUser.getUser().getRole();
-        if (!"ADMIN".equals(role) && !"SUPERADMIN".equals(role) && !ownerId.equals(loginUser.getUserId())) {
-            throw BizException.forbiddenResource();
-        }
+        requireAccessible(kbId, authentication);
         String kw = keyword == null || keyword.isBlank() ? null : keyword.trim();
 
         // 权限查询必须先完成，startPage 只作用于紧随其后的文档列表查询
@@ -96,5 +92,22 @@ public class KnowledgeBaseService {
                     .stream().map(DocumentListVO::from).toList();
             return PageResult.of(page, size, result.getTotal(), records);
         }
+    }
+
+    /**
+     * 归属校验：知识库 —— ADMIN/SUPERADMIN 放行，USER 仅本人（doc/04 §1.2 归属校验口径）
+     */
+    private LoginUser requireAccessible(long kbId, Authentication authentication) {
+        Long ownerId = mapper.findKnowledgeBaseOwner(kbId);
+        if (ownerId == null) {
+            throw BizException.knowledgeBaseNotFound();
+        }
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        String role = loginUser.getUser().getRole();
+        if (!ROLE_ADMIN.equals(role) && !ROLE_SUPERADMIN.equals(role)
+                && !ownerId.equals(loginUser.getUserId())) {
+            throw BizException.forbiddenResource();
+        }
+        return loginUser;
     }
 }

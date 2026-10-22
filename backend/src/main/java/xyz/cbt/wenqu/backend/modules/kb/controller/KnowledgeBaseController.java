@@ -23,8 +23,8 @@ public class KnowledgeBaseController {
 
     private final KnowledgeBaseService service;
 
-    /** 
-     * 知识库列表 
+    /**
+     * 知识库列表
      */
     @OpLog(type = "knowledge-base", action = "知识库列表", recordArgs = false)
     @GetMapping

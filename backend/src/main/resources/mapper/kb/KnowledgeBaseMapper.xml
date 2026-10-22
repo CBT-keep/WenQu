@@ -47,5 +47,20 @@
 
   </select>
 
+  <select id="findById" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseDetailProjection">
+    SELECT k.id AS id, k.name AS name, k.description AS description,
+           k.embedding_model_id AS "embeddingModelId", em.name AS "embeddingModelName",
+           k.rerank_model_id AS "rerankModelId", k.rerank_enabled AS "rerankEnabled",
+           k.retrieval_mode AS "retrievalMode", k.top_k AS "topK",
+           k.score_threshold AS "scoreThreshold", k.vector_weight AS "vectorWeight",
+           k.bm25_weight AS "bm25Weight", k.chunk_size AS "chunkSize",
+           k.chunk_overlap AS "chunkOverlap", k.owner_id AS "ownerId", u.username AS "ownerName",
+           k.visibility AS visibility, k.status AS status, k.doc_count AS "docCount",
+           k.chunk_count AS "chunkCount", k.created_at AS "createdAt", k.updated_at AS "updatedAt"
+    FROM kb_knowledge_base k
+    LEFT JOIN llm_model em ON em.id = k.embedding_model_id
+    LEFT JOIN sys_user u ON u.id = k.owner_id
+    WHERE k.id = #{kbId}
+  </select>
 
 </mapper>
