@@ -102,7 +102,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 归属校验：知识库 —— ADMIN/SUPERADMIN 放行，USER 仅本人（doc/04 §1.2 归属校验口径）
+     * 归属校验：知识库 —— ADMIN/SUPERADMIN 放行，USER 仅本人（归属校验口径）
      */
     private LoginUser requireAccessible(long kbId, Authentication authentication) {
         Long ownerId = mapper.findKnowledgeBaseOwner(kbId);
@@ -138,16 +138,26 @@ public class KnowledgeBaseService {
             throw BizException.badRequest("chunkOverlap 必须小于 chunkSize");
         }
 
-        // 启用重排时 rerankModelId 必填（doc/04 §5.2）
+        // 启用重排时 rerankModelId 必填
         if (Boolean.TRUE.equals(dto.getRerankEnabled()) && dto.getRerankModelId() == null) {
             throw BizException.badRequest("启用重排时必须指定 rerankModelId");
         }
 
-        // embedding 模型：必须是 EMBEDDING 且维度 == 全局维度，否则 40006（doc/04 §5.2）
+        // embedding 模型：必须是 EMBEDDING 且维度 == 全局维度，否则 40006
         if (dto.getEmbeddingModelId() != null && !dto.getEmbeddingModelId().equals(current.embeddingModelId())) {
             requireUsableEmbeddingModel(dto.getEmbeddingModelId());
         }
 
+        mapper.update(buildPatch(kbId, dto));
+
+        return new KnowledgeBaseUpdateVO(touchedIndex);
+    }
+
+    /**
+     * DTO → 更新补丁：只填传入的字段，未传的保持 null 以便 XML 跳过；
+     * name 去首尾空白，separators 转 JSON 字面量。
+     */
+    private static KnowledgeBase buildPatch(long kbId, KnowledgeBaseUpdateDTO dto) {
         KnowledgeBase patch = new KnowledgeBase();
         patch.setId(kbId);
         patch.setName(trimToNull(dto.getName()));
@@ -164,9 +174,7 @@ public class KnowledgeBaseService {
         patch.setScoreThreshold(dto.getScoreThreshold());
         patch.setRerankEnabled(dto.getRerankEnabled());
         patch.setVisibility(dto.getVisibility());
-        mapper.update(patch);
-
-        return new KnowledgeBaseUpdateVO(touchedIndex);
+        return patch;
     }
 
     /**
@@ -182,7 +190,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 校验 embedding 模型：必须是 EMBEDDING 且维度等于全局维度，否则 40006（doc/04 §5.2）
+     * 校验 embedding 模型：必须是 EMBEDDING 且维度等于全局维度，否则 40006
      */
     private void requireUsableEmbeddingModel(long modelId) {
         EmbeddingModelCheckProjection model = mapper.findEmbeddingModelCheck(modelId);

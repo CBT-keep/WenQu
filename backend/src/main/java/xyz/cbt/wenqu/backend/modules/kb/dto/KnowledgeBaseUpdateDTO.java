@@ -33,7 +33,7 @@ public class KnowledgeBaseUpdateDTO {
     @Min(value = 1, message = "rerankModelId 必须为正数")
     private Long rerankModelId;
 
-    @Min(value = 1, message = "chunkSize 必须大于 0")
+    @Min(value = 1)
     private Integer chunkSize;
 
     @Min(value = 0, message = "chunkOverlap 不能小于 0")
