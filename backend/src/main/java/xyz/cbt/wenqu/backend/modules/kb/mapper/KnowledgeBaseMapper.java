@@ -32,4 +32,6 @@ public interface KnowledgeBaseMapper {
     EmbeddingModelCheckProjection findEmbeddingModelCheck(@Param("modelId") long modelId);
 
     int deleteById(@Param("kbId") long kbId);
+
+    KnowledgeBaseStatsProjection findStats(@Param("kbId") long kbId);
 }

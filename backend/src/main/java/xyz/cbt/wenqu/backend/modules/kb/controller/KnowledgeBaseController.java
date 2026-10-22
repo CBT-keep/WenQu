@@ -13,6 +13,7 @@ import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseUpdateDTO;
 import xyz.cbt.wenqu.backend.modules.kb.service.KnowledgeBaseService;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseStatsVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseUpdateVO;
 
 /**
@@ -65,5 +66,13 @@ public class KnowledgeBaseController {
     public Result<Void> delete(@PathVariable long kbId, Authentication authentication) {
         service.delete(kbId, authentication);
         return Result.ok(null);
+    }
+
+    /**
+     * 知识库统计
+     */
+    @GetMapping("/{kbId}/stats")
+    public Result<KnowledgeBaseStatsVO> stats(@PathVariable long kbId, Authentication authentication) {
+        return Result.ok(service.stats(kbId, authentication));
     }
 }

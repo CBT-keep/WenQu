@@ -103,4 +103,19 @@
     DELETE FROM kb_knowledge_base WHERE id = #{kbId}
   </delete>
 
+  <!-- 统计口径以文档/分片实际数据为准，不依赖可能失真的冗余计数列。
+       docStatus 直接聚合成 jsonb 对象，省一次查询。 -->
+  <select id="findStats" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseStatsProjection">
+    SELECT
+      (SELECT count(*) FROM kb_document d WHERE d.kb_id = #{kbId}) AS "docCount",
+      (SELECT count(*) FROM kb_chunk c WHERE c.kb_id = #{kbId}) AS "chunkCount",
+      (SELECT COALESCE(sum(d.file_size), 0) FROM kb_document d WHERE d.kb_id = #{kbId}) AS "storageBytes",
+      (SELECT max(d.updated_at) FROM kb_document d
+        WHERE d.kb_id = #{kbId} AND d.status = 'READY') AS "lastIndexedAt",
+      (SELECT round(avg(c.token_count)) FROM kb_chunk c WHERE c.kb_id = #{kbId}) AS "avgChunkTokens",
+      (SELECT COALESCE(jsonb_object_agg(g.status, g.cnt), '{}'::jsonb)
+         FROM (SELECT status, count(*) AS cnt FROM kb_document
+                WHERE kb_id = #{kbId} GROUP BY status) g) AS "docStatusJson"
+  </select>
+
 </mapper>

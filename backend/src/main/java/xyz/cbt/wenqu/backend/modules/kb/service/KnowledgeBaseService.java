@@ -3,9 +3,12 @@ package xyz.cbt.wenqu.backend.modules.kb.service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import xyz.cbt.wenqu.backend.common.BizException;
 import xyz.cbt.wenqu.backend.common.ErrorCode;
 import xyz.cbt.wenqu.backend.common.PageResult;
@@ -19,14 +22,20 @@ import xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.EmbeddingModelCheckProjection;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseDetailProjection;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection;
+import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseStatsProjection;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseStatsVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseUpdateVO;
 
+import java.math.RoundingMode;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KnowledgeBaseService {
@@ -37,6 +46,7 @@ public class KnowledgeBaseService {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_SUPERADMIN = "SUPERADMIN";
     private final KnowledgeBaseMapper mapper;
+    private final ObjectMapper objectMapper;
 
     /**
      * 知识库列表
@@ -182,6 +192,40 @@ public class KnowledgeBaseService {
             throw BizException.operationNotAllowed("知识库正在建索引，请完成后再删除");
         }
         mapper.deleteById(kbId);
+    }
+
+    /**
+     * 知识库统计
+     */
+    @Transactional(readOnly = true)
+    public KnowledgeBaseStatsVO stats(long kbId, Authentication authentication) {
+        requireAccessible(kbId, authentication);
+        KnowledgeBaseStatsProjection row = mapper.findStats(kbId);
+
+        return KnowledgeBaseStatsVO.builder()
+                .docCount(row.docCount())
+                .chunkCount(row.chunkCount())
+                .docStatus(parseDocStatus(row.docStatusJson()))
+                .storageBytes(row.storageBytes())
+                .lastIndexedAt(row.lastIndexedAt())
+                .avgChunkTokens(row.avgChunkTokens() == null ? 0 : row.avgChunkTokens().setScale(0, RoundingMode.HALF_UP).intValue())
+                .build();
+    }
+
+    /**
+     * docStatus 由 SQL 侧 jsonb_object_agg 聚合，这里只做解析
+     */
+    private Map<String, Integer> parseDocStatus(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Integer>>() {
+            });
+        } catch (Exception e) {
+            log.warn("docStatus 解析失败: {}", json, e);
+            return Collections.emptyMap();
+        }
     }
 
     /**
