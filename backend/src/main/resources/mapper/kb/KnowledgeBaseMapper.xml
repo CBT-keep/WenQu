@@ -99,4 +99,8 @@
     WHERE m.id = #{modelId} AND m.enabled = true
   </select>
 
+  <delete id="deleteById">
+    DELETE FROM kb_knowledge_base WHERE id = #{kbId}
+  </delete>
+
 </mapper>

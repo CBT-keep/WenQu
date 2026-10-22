@@ -30,4 +30,6 @@ public interface KnowledgeBaseMapper {
      * 取模型类型、维度与全局维度，供 embedding 模型校验（是否为 EMBEDDING 且维度匹配）
      */
     EmbeddingModelCheckProjection findEmbeddingModelCheck(@Param("modelId") long modelId);
+
+    int deleteById(@Param("kbId") long kbId);
 }

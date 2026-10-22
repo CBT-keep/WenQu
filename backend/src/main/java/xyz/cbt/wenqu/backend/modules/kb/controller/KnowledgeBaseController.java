@@ -56,4 +56,14 @@ public class KnowledgeBaseController {
             Authentication authentication) {
         return Result.ok(service.update(kbId, dto, authentication));
     }
+
+    /**
+     * 删除知识库：索引中拒绝删除（10004）
+     */
+    @OpLog(type = "KB", action = "删除知识库")
+    @DeleteMapping("/{kbId}")
+    public Result<Void> delete(@PathVariable long kbId, Authentication authentication) {
+        service.delete(kbId, authentication);
+        return Result.ok(null);
+    }
 }
