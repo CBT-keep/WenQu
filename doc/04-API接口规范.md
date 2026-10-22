@@ -78,14 +78,14 @@
 
 ## 1.4 分页约定
 
-**请求参数**（所有列表接口通用）
+**请求参数**（仅适用于明确声明分页的接口；数组列表不自动增加分页参数）
 
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `page` | int | `1` | 页码，从 1 开始 |
 | `size` | int | `20` | 每页条数，范围 1–100 |
-| `sort` | string | 各接口约定 | 排序字段（蛇形命名，如 `updated_at`） |
-| `order` | string | `desc` | `asc` / `desc` |
+| `sort` | string | 各接口约定 | 仅在具体接口声明支持时接收；限定字段白名单 |
+| `order` | string | `desc` | 仅随支持排序的接口接收，限定 `asc` / `desc` |
 
 **响应结构**
 
@@ -103,6 +103,36 @@
   "traceId": "b1f2c3d4e5f6"
 }
 ```
+
+### 查询 DTO 与校验约定
+
+以下为后端实现约定，不代表所有接口已经落地；已有实现与约定的差异需在对应开发任务中处理。
+
+- 多条件列表查询按接口使用独立 DTO，在 Controller 通过 `@ModelAttribute` 绑定 Query 参数、通过 `@Valid` 校验；Service 负责权限与业务规则。GET 请求不改为 JSON 请求体。
+- 各 DTO 独立声明自身字段，不合并知识库与文档查询 DTO，也不抽取公共查询父类；复用 `PageResult<T>` 响应不要求复用请求对象。
+- 分页 DTO 中 `page` / `size` 默认 `1` / `20`，要求 `page >= 1`、`1 <= size <= 100`；非法值返回参数错误。空数据 `total=0`、`pages=0`，超出末页保留请求页码并返回空 `records`。
+- 可选 `keyword` 去除首尾空白，空白按未筛选处理；其他可选文本筛选为空白时不筛选，非空枚举值必须合法。可选 ID 用 `Long`，提供时必须为正数；可选布尔筛选用 `Boolean`，区分未提供与 `false`，非法布尔值返回参数错误。
+- 时间筛选使用 `OffsetDateTime`，接收带时区的 ISO8601；提供起止时间时要求 `startTime <= endTime`。参数类型转换失败与 Bean Validation 失败统一返回参数错误。
+- `kbId`、`docId`、会话 ID 等路径参数保持独立，由服务端校验其存在性和访问权限。DTO 不承载可信的当前用户或角色；客户端筛选参数不能扩大调用者权限。
+- 本文未声明 `sort` / `order` 的接口使用各自固定排序，不接收任意 SQL 字段或排序表达式。
+
+| 接口 | 独立查询 DTO | 字段 |
+|---|---|---|
+| §3.7 用户列表 | `UserQueryDTO` | `page`、`size`、`keyword`、`role`、`status` |
+| §4.1 模型列表 | `ModelQueryDTO` | `type`、`enabled`（不分页） |
+| §5.1 知识库列表 | `KnowledgeBaseQueryDTO` | `page`、`size`、`keyword`、`status`、`ownerId` |
+| §6.1 文档列表 | `DocumentListQueryDTO` | `page`、`size`、`keyword`、`status` |
+| §6.7 分片列表 | `ChunkQueryDTO` | `page`、`size`、`keyword` |
+| §7.1 问答会话列表 | `ChatConversationQueryDTO` | `page`、`size`、`keyword` |
+| §7.4 问答消息列表 | `ChatMessageQueryDTO` | `page`、`size` |
+| §8.1 数据源列表 | `DatasourceQueryDTO` | `page`、`size`、`keyword`、`status` |
+| §8.8 数据表列表 | `SqlTableQueryDTO` | `page`、`size`、`keyword`、`enabled` |
+| §8.12 查数会话列表 | `SqlConversationQueryDTO` | `page`、`size`、`datasourceId`、`keyword` |
+| §8.14 查数消息列表 | `SqlMessageQueryDTO` | `page`、`size` |
+| §9.3 操作日志列表 | `OperationLogQueryDTO` | `page`、`size`、`type`、`userId`、`keyword`、`result`、`startTime`、`endTime` |
+| §9.4 操作日志导出 | `OperationLogExportQueryDTO` | 与日志列表相同的筛选字段，独立声明，不含 `page` / `size` |
+
+仅含一个简单参数的 options、系统参数分组、样例行和趋势接口可直接接收对应参数，不为形式统一强制增加 DTO。模型及系统参数等返回数组的接口仍保持原响应形式。
 
 ## 1.5 错误码表
 
@@ -515,6 +545,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 3.7 用户列表
 
+本接口使用独立 `UserQueryDTO`，字段与校验见 §1.4；`role`、`status` 非空时校验枚举。
+
 `GET /api/v1/users` · 👑
 
 **Query**
@@ -617,6 +649,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 # 第四部分 · 模型配置
 
 ## 4.1 模型列表
+
+本接口使用独立 `ModelQueryDTO`；`enabled` 使用可空 `Boolean`，`type` 非空时校验枚举，仍返回数组，不分页。
 
 `GET /api/v1/models` · 👑
 
@@ -728,6 +762,18 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 **Query**：`page`、`size`、`keyword`、`status`（EMPTY/INDEXING/READY）、`ownerId`（🛡️ 时有效）
 
 > `USER` 只能看到 `owner_id = 自己` 的记录；`ADMIN`/`SUPERADMIN` 可见全部。
+
+**后端参数封装**：本接口独立使用 `KnowledgeBaseQueryDTO`，不与文档列表的 `DocumentListQueryDTO` 合并，也不抽取公共查询父类。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `page` | int | `1` | 从 1 开始 |
+| `size` | int | `20` | 每页条数，范围 1–100 |
+| `keyword` | String | 无 | 知识库名称搜索；空白按未筛选处理 |
+| `status` | String | 无 | `EMPTY` / `INDEXING` / `READY`；空白不筛选，非法值返回参数错误 |
+| `ownerId` | Long | 无 | 仅 `ADMIN` / `SUPERADMIN` 可据此筛选；普通用户始终限定为本人，不能通过此参数扩大访问范围 |
+
+分页使用 PageHelper，返回结构继续为 `PageResult<KnowledgeBaseListVO>`（`page`、`size`、`total`、`pages`、`records`）。超过末页时返回空列表，不自动调整至末页。DTO 仅封装查询参数，权限范围由后端确定。
 
 ```json
 {
@@ -879,6 +925,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 6.1 文档列表
 
+本接口使用独立 `DocumentListQueryDTO`（不继承公共查询父类）。分页与参数校验见 §1.4；`status` 仅允许 `PENDING` / `PARSING` / `CHUNKING` / `EMBEDDING` / `READY` / `FAILED`，路径 `kbId` 单独进行知识库访问校验。
+
 `GET /api/v1/knowledge-bases/{kbId}/documents` · 🔑👤
 
 **Query**：`page`、`size`、`keyword`（文档名）、`status`
@@ -967,6 +1015,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 6.7 分片列表
 
+本接口使用独立 `ChunkQueryDTO`；分页与参数校验见 §1.4，路径 `docId` 单独校验文档访问权限。
+
 `GET /api/v1/documents/{docId}/chunks` · 🔑👤 · Query：`page`、`size`、`keyword`
 
 ```json
@@ -1000,6 +1050,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 # 第七部分 · 智能问答（RAG 对话）
 
 ## 7.1 会话列表
+
+本接口使用独立 `ChatConversationQueryDTO`，分页与参数校验见 §1.4。
 
 `GET /api/v1/conversations` · 🔑👤 · Query：`page`、`size`、`keyword`
 
@@ -1045,7 +1097,9 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 7.4 消息列表
 
-`GET /api/v1/conversations/{id}/messages` · 🔑👤 · Query：`page`、`size`（默认按 `created_at asc`）
+本接口使用独立 `ChatMessageQueryDTO`，分页参数校验见 §1.4；路径会话 ID 单独进行访问校验，按 `created_at ASC, id ASC` 稳定排序。
+
+`GET /api/v1/conversations/{id}/messages` · 🔑👤 · Query：`page`、`size`（默认按 `created_at ASC, id ASC`）
 
 ```json
 {
@@ -1140,6 +1194,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 # 第八部分 · SQLBot
 
 ## 8.1 数据源列表
+
+本接口使用独立 `DatasourceQueryDTO`；分页与参数校验见 §1.4，`status` 为 `OK` / `ERROR` / `UNKNOWN`。`ADMIN` / `USER` 始终限定本人数据源，`SUPERADMIN` 可查看全部。
 
 `GET /api/v1/sqlbot/datasources` · 🔑👤 · Query：`page`、`size`、`keyword`、`status`
 
@@ -1260,6 +1316,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 8.8 表列表
 
+本接口使用独立 `SqlTableQueryDTO`，分页参数校验见 §1.4；`enabled` 使用可空 `Boolean`，路径数据源 ID 按数据源权限规则校验。
+
 `GET /api/v1/sqlbot/datasources/{id}/tables` · 🔑👤 · Query：`page`、`size`、`keyword`、`enabled`
 
 ```json
@@ -1329,6 +1387,8 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 ## 8.12 查数会话列表
 
+本接口使用独立 `SqlConversationQueryDTO`，分页参数校验见 §1.4；可选 `datasourceId` 使用 `Long` 且提供时须为正数，筛选不改变调用者的会话访问范围。
+
 `GET /api/v1/sqlbot/conversations` · 🔑👤 · Query：`page`、`size`、`datasourceId`、`keyword`
 
 ```json
@@ -1369,7 +1429,7 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 |---|---|
 | `GET /sqlbot/conversations/{id}` | 会话对象 |
 | `DELETE /sqlbot/conversations/{id}` | 级联删除消息 |
-| `GET /sqlbot/conversations/{id}/messages` | 分页（`page`、`size`） |
+| `GET /sqlbot/conversations/{id}/messages` | 独立 `SqlMessageQueryDTO`，分页（`page`、`size`），校验见 §1.4 |
 
 消息列表单条结构：
 
@@ -1537,6 +1597,8 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
 
 ## 9.3 操作日志
 
+本接口使用独立 `OperationLogQueryDTO`，分页与时间区间校验见 §1.4；`result` 为 `SUCCESS` / `FAILURE`，`type` 按下列枚举校验。
+
 `GET /api/v1/system/logs` · 👑
 
 **Query**：`page`、`size`、`type`（LOGIN/KB/DOC/CHAT/SQL/SYSTEM）、`userId`、`keyword`、`result`、`startTime`、`endTime`（ISO8601）
@@ -1563,7 +1625,7 @@ Content-Disposition: attachment; filename="export_20261011_100422.csv"
 | 接口 | 说明 |
 |---|---|
 | `GET /system/logs/{id}` | 单条详情（`detail` 可为结构化 JSON 字符串） |
-| `GET /system/logs/export` | Query 同 9.3，返回 CSV 文件流 |
+| `GET /system/logs/export` | 独立 `OperationLogExportQueryDTO`，筛选字段同 9.3，不接收分页参数，返回完整匹配结果的 CSV 文件流 |
 
 ## 9.5 仪表盘汇总
 
