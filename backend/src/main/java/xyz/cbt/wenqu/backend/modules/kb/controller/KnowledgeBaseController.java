@@ -50,6 +50,15 @@ public class KnowledgeBaseController {
     }
 
     /**
+     * 知识库详情
+     */
+    @OpLog(type = "kb", action = "知识库详情查询")
+    @GetMapping("/{kbId}")
+    public Result<KnowledgeBaseListVO> detail(@PathVariable long kbId, Authentication authentication) {
+        return Result.ok(service.detail(kbId, authentication));
+    }
+
+    /**
      * 文档列表
      */
     @OpLog(type = "kb", action = "文档列表查询")

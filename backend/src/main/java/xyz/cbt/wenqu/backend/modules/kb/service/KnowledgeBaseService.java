@@ -117,6 +117,28 @@ public class KnowledgeBaseService {
     }
 
     /**
+     * 知识库详情：USER 仅本人，ADMIN / SUPERADMIN 可见全部
+     */
+    @Transactional(readOnly = true)
+    public KnowledgeBaseListVO detail(long kbId, Authentication authentication) {
+        if (kbId <= 0) {
+            throw BizException.badRequest("kbId 参数不合法");
+        }
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        if (loginUser == null || loginUser.getUser() == null) {
+            throw BizException.badRequest("当前用户信息不完整");
+        }
+        KnowledgeBaseListProjection row = mapper.findKnowledgeBaseById(kbId);
+        if (row == null) {
+            throw BizException.knowledgeBaseNotFound();
+        }
+        if (!isAdmin(loginUser.getUser().getRole()) && !row.ownerId().equals(loginUser.getUserId())) {
+            throw BizException.forbiddenResource();
+        }
+        return KnowledgeBaseListVO.from(row);
+    }
+
+    /**
      * 创建知识库
      */
     @Transactional
