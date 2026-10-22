@@ -4,6 +4,25 @@
   <select id="findKnowledgeBaseOwner" resultType="java.lang.Long">
     SELECT owner_id FROM kb_knowledge_base WHERE id = #{kbId}
   </select>
+  <select id="searchKnowledgeBases" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection">
+    SELECT kb.id, kb.name, kb.description,
+           kb.embedding_model_id AS "embeddingModelId", em.name AS "embeddingModelName",
+           kb.rerank_enabled AS "rerankEnabled", kb.rerank_model_id AS "rerankModelId",
+           kb.retrieval_mode AS "retrievalMode", kb.top_k AS "topK",
+           kb.score_threshold AS "scoreThreshold", kb.vector_weight AS "vectorWeight",
+           kb.bm25_weight AS "bm25Weight", kb.owner_id AS "ownerId", u.username AS "ownerName",
+           kb.visibility, kb.status, kb.doc_count AS "docCount", kb.chunk_count AS "chunkCount",
+           kb.created_at AS "createdAt", kb.updated_at AS "updatedAt"
+    FROM kb_knowledge_base kb
+    JOIN llm_model em ON em.id = kb.embedding_model_id
+    JOIN sys_user u ON u.id = kb.owner_id
+    <where>
+      <if test="keyword != null">AND kb.name ILIKE '%' || #{keyword} || '%'</if>
+      <if test="status != null">AND kb.status = #{status}</if>
+      <if test="ownerId != null">AND kb.owner_id = #{ownerId}</if>
+    </where>
+    ORDER BY kb.updated_at DESC, kb.id DESC
+  </select>
   <select id="search" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection">
 
             SELECT d.id AS id, d.kb_id AS "kbId", d.name AS name, d.file_type AS "fileType",
