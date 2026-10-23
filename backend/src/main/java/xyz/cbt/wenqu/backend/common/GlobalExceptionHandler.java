@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,6 +42,15 @@ public class GlobalExceptionHandler {
                 .orElse("参数不合法");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Result.error(ErrorCode.BAD_REQUEST, message));
+    }
+
+    /**
+     * 请求体格式或字段类型不合法
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result<Void>> handleUnreadableBody(HttpMessageNotReadableException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(ErrorCode.BAD_REQUEST, "请求体格式或字段类型不合法"));
     }
 
     /**

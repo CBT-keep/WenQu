@@ -3,7 +3,7 @@ package xyz.cbt.wenqu.backend.common;
 import java.util.List;
 
 /**
- * 分页响应体（doc/04 §3.7）：
+ * 分页响应体：
  * { page, size, total, pages, records }
  */
 public record PageResult<T>(long page, long size, long total, long pages, List<T> records) {

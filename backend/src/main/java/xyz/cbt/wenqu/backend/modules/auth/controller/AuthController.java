@@ -94,7 +94,7 @@ public class AuthController {
         if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
             return loginUser.getUserId();
         }
-        throw BizException.badCredentials();
+        throw BizException.tokenInvalid();
     }
 
     private String clientIp(HttpServletRequest request) {
