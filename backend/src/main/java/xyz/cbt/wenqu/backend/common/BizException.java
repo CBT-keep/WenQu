@@ -70,6 +70,10 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.MODEL_NOT_AVAILABLE, "模型不存在或已禁用", 200);
     }
 
+    public static BizException modelConnectTestFailed() {
+        return new BizException(ErrorCode.MODEL_CONNECT_TEST_FALIED, "模型联通测试失败", 200);
+    }
+
     public static BizException knowledgeBaseNotFound() {
         return new BizException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在", 404);
     }
@@ -77,4 +81,5 @@ public class BizException extends RuntimeException {
     public static BizException forbiddenResource() {
         return new BizException(ErrorCode.FORBIDDEN, "无权访问该知识库", 403);
     }
+
 }

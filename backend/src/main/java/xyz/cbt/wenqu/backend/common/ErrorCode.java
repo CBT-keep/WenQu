@@ -18,9 +18,10 @@ public final class ErrorCode {
     public static final int OLD_PASSWORD_WRONG = 20007; // 原密码错误
 
     public static final int MODEL_NOT_AVAILABLE = 30001; // 模型不存在或已禁用
-
+    public static final int MODEL_CONNECT_TEST_FALIED = 30002; // 模型测试失败
     public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在
     public static final int VECTOR_DIMENSION_MISMATCH = 40006; // 向量维度不匹配
+    public static final int FORBIDDEN_RESOURCE = 40301;   // 无权访问资源
 
     public static final int CANNOT_DELETE_SELF = 70002; // 不可删除当前登录账号
     public static final int INTERNAL_ERROR = 99999;     // 服务端内部错误

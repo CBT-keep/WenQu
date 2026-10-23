@@ -14,4 +14,22 @@
     </where>
     ORDER BY type ASC, is_default DESC, name ASC, id ASC
   </select>
+
+    <select id="selectById" resultType="xyz.cbt.wenqu.backend.modules.model.entity.Model">
+        SELECT *
+        FROM llm_model
+        WHERE id = #{id}
+    </select>
+
+    <select id="countByName" resultType="long">
+        SELECT count(*) FROM llm_model WHERE name = #{name}
+    </select>
+
+    <select id="countDefaultByType" resultType="long">
+        SELECT count(*) FROM llm_model WHERE type = #{type} AND is_default = true
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO llm_model (name, type, provider, base_url, api_key_cipher, model_name, dimension, temperature, max_tokens, timeout_ms, is_default, enabled, extra_params, created_at, updated_at) VALUES (#{name}, #{type}, #{provider}, #{baseUrl}, #{apiKeyCipher}, #{modelName}, #{dimension}, #{temperature}, #{maxTokens}, #{timeoutMs}, #{isDefault}, #{enabled}, #{extraParams}::jsonb, #{createdAt}, #{updatedAt})
+    </insert>
 </mapper>

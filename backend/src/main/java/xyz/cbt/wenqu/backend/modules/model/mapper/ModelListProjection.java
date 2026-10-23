@@ -1,5 +1,8 @@
 package xyz.cbt.wenqu.backend.modules.model.mapper;
 
+import lombok.Data;
+import lombok.Getter;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
