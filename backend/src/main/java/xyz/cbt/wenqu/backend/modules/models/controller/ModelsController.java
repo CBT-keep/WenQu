@@ -42,4 +42,18 @@ public class ModelsController {
     public ResponseEntity<Result<ModelVO>> add(@Valid @RequestBody ModelCreateDTO dto){
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(modelsService.create(dto)));
     }
+
+    /**
+     * 删除
+     */
+    @OpLog(type = "models", action = "删除")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id){
+        modelsService.delete(id);
+        return Result.ok(null);
+    }
+
+    /**
+     *
+     */
 }

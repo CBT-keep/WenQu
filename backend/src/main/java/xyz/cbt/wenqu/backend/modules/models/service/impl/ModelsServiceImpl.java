@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * 模型管理服务实现类
@@ -99,6 +100,22 @@ public class ModelsServiceImpl implements ModelsService {
 
         Map<String, Object> extraParams = dto.getExtraParams();
         return ModelVO.from(model, apiKeyRaw, extraParams);
+    }
+
+    /**
+     * 删除模型
+     */
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        LlmModel model = modelsMapper.findById(id).orElseThrow(BizException::modelNotFound);
+        long kb_num = modelsMapper.KbRefByModelId(id);
+        long chat_num = modelsMapper.countChatConvRefByModelId(id);
+        if (kb_num > 0 || chat_num > 0){
+            throw BizException.modelInUse(chat_num + kb_num);
+        }
+        modelsMapper.deleteById(id);
+        audit("MODEL_DELETE", model.getName(), "删除模型 ");
     }
 
     /**

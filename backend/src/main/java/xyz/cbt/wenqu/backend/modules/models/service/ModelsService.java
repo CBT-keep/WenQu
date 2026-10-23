@@ -18,4 +18,9 @@ public interface ModelsService {
      * 新增模型
      */
     ModelVO create(ModelCreateDTO dto);
+
+    /**
+     * 删除模型
+     */
+    void delete(Long id);
 }

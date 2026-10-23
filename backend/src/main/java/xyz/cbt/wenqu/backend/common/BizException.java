@@ -71,8 +71,17 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.RESOURCE_CONFLICT, "资源冲突(名称重复等)", 409);
     }
     public static BizException modelDefaultExists() {
-        return new BizException(ErrorCode.MODEL_DEFAULT_EXISTS, "该类型已存在默认模型", 200);
+        return new BizException(ErrorCode.MODEL_DEFAULT_EXISTS, "该类型已存在默认模型", 409);
     }
+
+    public static BizException modelNotFound() {
+        return new BizException(ErrorCode.MODEL_NOT_FOUND, "模型不存在或已禁用", 404);
+    }
+
+    public static BizException modelInUse(long num){
+        return new BizException(ErrorCode.MODEL_IN_USE,"模型正在使用中"+num+",需先解除使用",409);
+    }
+
     public static BizException internalError(String message){
         return new BizException(ErrorCode.INTERNAL_ERROR, message,500);
     }

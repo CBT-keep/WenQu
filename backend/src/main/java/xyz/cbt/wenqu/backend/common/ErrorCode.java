@@ -20,6 +20,8 @@ public final class ErrorCode {
     public static final int INTERNAL_ERROR = 50000;     // 服务器内部错误
     public static final int RESOURCE_CONFLICT = 10003; // 资源冲突（名称重复等）
     public static final int MODEL_DEFAULT_EXISTS = 30004; // 该类型已存在默认模型
+    public static final int MODEL_NOT_FOUND = 30001; // 模型不存在
+    public static final int MODEL_IN_USE = 10004; // 模型正在使用中
     
 
     private ErrorCode() {
