@@ -18,10 +18,7 @@ public final class ErrorCode {
     public static final int OLD_PASSWORD_WRONG = 20007; // 原密码错误
 
     public static final int MODEL_NOT_AVAILABLE = 30001; // 模型不存在或已禁用
-    public static final int MODEL_NOT_FOUND = 30002;    // 模型不存在
-    public static final int MODEL_DEFAULT_EXISTS = 30004; // 该类型已存在默认模型
-    public static final int MODEL_IN_USE = 10005; // 模型正在使用中
-
+    public static final int MODEL_CONNECT_TEST_FALIED = 30002; // 模型测试失败
     public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在
     public static final int VECTOR_DIMENSION_MISMATCH = 40006; // 向量维度不匹配
     public static final int FORBIDDEN_RESOURCE = 40301;   // 无权访问资源

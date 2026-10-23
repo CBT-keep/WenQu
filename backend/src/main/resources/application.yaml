@@ -49,3 +49,9 @@ pagehelper:
   helper-dialect: postgresql
   reasonable: false
   page-size-zero: false
+
+
+crypto:
+  # AES-GCM 密钥（32 字节原始密钥，base64编码后传入环境变量），用于加密 apiKey / 数据源密码
+  aes-key: ${WENQU_AES_KEY:qwertyuiopasdfghjklzxcvbnm1q8a6s8e}
+

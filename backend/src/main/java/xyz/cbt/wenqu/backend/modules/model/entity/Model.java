@@ -1,15 +1,18 @@
-package xyz.cbt.wenqu.backend.modules.models.entity;
+package xyz.cbt.wenqu.backend.modules.model.entity;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-/**
- * 模型配置实体（对应 llm_model 表）
- */
 @Data
-public class LlmModel {
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Model {
     private Long id;
     private String name;
     private String type;

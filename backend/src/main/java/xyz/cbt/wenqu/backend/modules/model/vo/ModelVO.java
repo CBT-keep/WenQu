@@ -1,8 +1,8 @@
-package xyz.cbt.wenqu.backend.modules.models.vo;
+package xyz.cbt.wenqu.backend.modules.model.vo;
 
 import lombok.Builder;
 import lombok.Data;
-import xyz.cbt.wenqu.backend.modules.models.entity.LlmModel;
+import xyz.cbt.wenqu.backend.modules.model.entity.Model;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -27,7 +27,7 @@ public class ModelVO {
     private Map<String, Object> extraParams;
     private OffsetDateTime createdAt;
 
-    public static ModelVO from(LlmModel m, String apiKeyRaw, Map<String, Object> extraParams) {
+    public static ModelVO from(Model m, String apiKeyRaw, Map<String, Object> extraParams) {
         return ModelVO.builder()
                 .id(m.getId())
                 .name(m.getName())
@@ -51,13 +51,6 @@ public class ModelVO {
      *掩码：前3位+后4位，如：sk-****abcd
      */
     private static String maskApiKey(String apiKey) {
-        if (apiKey==null||apiKey.isBlank()){
-            return null;
-        }
-        //解密失败：
-        if ("[DECRYPT_FAIL]".equals(apiKey)) {
-            return "[解密失败]";
-        }
         String key = apiKey.trim();
         if (key.length()<=8){
             return "****";

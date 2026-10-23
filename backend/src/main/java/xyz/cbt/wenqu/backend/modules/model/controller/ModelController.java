@@ -2,12 +2,10 @@ package xyz.cbt.wenqu.backend.modules.model.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import xyz.cbt.wenqu.backend.common.BizException;
 import xyz.cbt.wenqu.backend.common.Result;
 import xyz.cbt.wenqu.backend.common.log.OpLog;
@@ -16,6 +14,9 @@ import xyz.cbt.wenqu.backend.modules.model.mapper.ModelOptionMapper;
 import xyz.cbt.wenqu.backend.modules.model.service.ModelListService;
 import xyz.cbt.wenqu.backend.modules.model.vo.ModelListVO;
 import xyz.cbt.wenqu.backend.modules.model.vo.ModelOptionVO;
+import xyz.cbt.wenqu.backend.modules.model.vo.ModelTestVO;
+import xyz.cbt.wenqu.backend.modules.model.dto.ModelCreateDTO;
+import xyz.cbt.wenqu.backend.modules.model.vo.ModelVO;
 
 import java.util.List;
 import java.util.Set;
@@ -40,6 +41,16 @@ public class ModelController {
     }
 
     /**
+     * 新增模型
+     */
+    @OpLog(type = "model", action = "新增模型")
+    @PostMapping
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<Result<ModelVO>> add(@Valid @RequestBody ModelCreateDTO dto){
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(service.create(dto)));
+    }
+
+    /**
      * 开放给所有用户的模型下拉选项查询
      */
     @OpLog(type = "model", action = "模型选项", recordArgs = false)
@@ -49,5 +60,26 @@ public class ModelController {
             throw BizException.badRequest("模型类型不合法");
         }
         return Result.ok(optionMapper.findEnabled(type));
+    }
+
+    /**
+     * 连通测试--已保存
+     */
+    @OpLog(type = "model", action = "模型联通测试", recordArgs = false)
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PostMapping("/{id}/test")
+    public Result<ModelTestVO> test(@PathVariable Long id) {
+        return Result.ok(service.test(id));
+    }
+
+    /**
+     * 连通测试--未保存
+     */
+    @OpLog(type = "model", action = "模型联通测试", recordArgs = false)
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PostMapping("/test")
+    public Result<ModelTestVO> testDraft(@Valid @RequestBody ModelCreateDTO dto) {
+        return Result.ok(service.testDraft(dto));
+
     }
 }

@@ -1,4 +1,4 @@
-package xyz.cbt.wenqu.backend.modules.models.dto;
+package xyz.cbt.wenqu.backend.modules.model.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -13,7 +13,7 @@ public class ModelCreateDTO {
     private String name;
 
     @NotBlank(message = "type不能为空")
-    @Pattern(regexp = "CHAT|EMBEDDING|RERANK", message = "models的type仅支持CHAT或EMBEDDING或RERANK")
+    @Pattern(regexp = "CHAT|EMBEDDING|RERANK", message = "type仅支持CHAT或EMBEDDING或RERANK")
     private String type;
 
     @Pattern(regexp = "openai|dashscope|custom", message = "provider仅支持openai或dashscope或custom")

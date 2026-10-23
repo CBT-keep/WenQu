@@ -1,7 +1,6 @@
 package xyz.cbt.wenqu.backend.common;
 
 import lombok.Getter;
-import org.aspectj.bridge.Message;
 
 /**
  * 业务异常：携带业务错误码与对应的 HTTP 状态码，
@@ -71,6 +70,10 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.MODEL_NOT_AVAILABLE, "模型不存在或已禁用", 200);
     }
 
+    public static BizException modelConnectTestFailed() {
+        return new BizException(ErrorCode.MODEL_CONNECT_TEST_FALIED, "模型联通测试失败", 200);
+    }
+
     public static BizException knowledgeBaseNotFound() {
         return new BizException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在", 404);
     }
@@ -79,22 +82,4 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.FORBIDDEN, "无权访问该知识库", 403);
     }
 
-    public static BizException resourceConflict() {
-        return new BizException(ErrorCode.RESOURCE_CONFLICT, "资源冲突(名称重复等)", 409);
-    }
-    public static BizException modelDefaultExists() {
-        return new BizException(ErrorCode.MODEL_DEFAULT_EXISTS, "该类型已存在默认模型", 409);
-    }
-
-    public static BizException modelNotFound() {
-        return new BizException(ErrorCode.MODEL_NOT_FOUND, "模型不存在或已禁用", 404);
-    }
-
-    public static BizException modelInUse(long num){
-        return new BizException(ErrorCode.MODEL_IN_USE,"模型正在使用中"+num+",需先解除使用",409);
-    }
-
-    public static BizException internalError(String message){
-        return new BizException(ErrorCode.INTERNAL_ERROR, message,500);
-    }
 }
