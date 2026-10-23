@@ -29,12 +29,12 @@ pnpm lint
 
 ## 契约优先 + 可开关 Mock 层
 
-后端目前只有 `auth` / `users`。KB、Chat、SQLBot、模型配置、系统管理尚未实现，
+后端已有 `auth` / `users` 和部分知识库接口。Chat、SQLBot、模型配置、系统管理尚未实现，
 前端按 doc/04 契约把请求写好，再通过 `VITE_MOCK` 决定是否短路成本地 Mock：
 
 ```dotenv
 # frontend/.env.development
-VITE_MOCK=all          # all | none | kb,chat,sqlbot,model,system
+VITE_MOCK=chat,sqlbot,model,system  # all | none | 模块名逗号分隔
 ```
 
 - 每个 `src/api/*.ts` 函数：`mockEnabled(模块)` 为真 → 返回 `src/mock/*` 的数据；否则走真实 `/api/v1`。

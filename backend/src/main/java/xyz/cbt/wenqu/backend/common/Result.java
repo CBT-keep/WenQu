@@ -8,7 +8,7 @@ import xyz.cbt.wenqu.backend.common.log.TraceIdFilter;
  */
 public record Result<T>(int code, String message, T data, String traceId) {
     public static <T> Result<T> ok(T data) {
-        return new Result<>(0, "Success", data, MDC.get(TraceIdFilter.TRACE_ID_KEY));
+        return new Result<>(0, "success", data, MDC.get(TraceIdFilter.TRACE_ID_KEY));
     }
 
     public static <T> Result<T> error(int code, String message) {

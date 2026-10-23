@@ -9,6 +9,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
+import xyz.cbt.wenqu.backend.common.ErrorCode;
 import xyz.cbt.wenqu.backend.common.Result;
 
 import java.io.IOException;
@@ -31,6 +32,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(), Result.error(20003, "Token无效或已经过期"));
+        objectMapper.writeValue(response.getWriter(), Result.error(ErrorCode.TOKEN_INVALID, "Token 无效或已过期"));
     }
 }

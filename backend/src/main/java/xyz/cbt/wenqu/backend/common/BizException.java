@@ -35,16 +35,20 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.REFRESH_INVALID, "Refresh Token 无效或已吊销", 401);
     }
 
+    public static BizException tokenInvalid() {
+        return new BizException(ErrorCode.TOKEN_INVALID, "Token 无效或已过期", 401);
+    }
+
     public static BizException oldPasswordWrong() {
-        return new BizException(ErrorCode.OLD_PASSWORD_WRONG, "原密码错误", 400);
+        return new BizException(ErrorCode.OLD_PASSWORD_WRONG, "原密码错误", 200);
     }
 
     public static BizException usernameTaken() {
-        return new BizException(ErrorCode.USERNAME_TAKEN, "用户名已存在", 409);
+        return new BizException(ErrorCode.RESOURCE_CONFLICT, "用户名已存在", 409);
     }
 
     public static BizException userNotFound() {
-        return new BizException(ErrorCode.USER_NOT_FOUND, "用户不存在", 404);
+        return new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在", 404);
     }
 
     /**
@@ -58,11 +62,19 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.BAD_REQUEST, message, 400);
     }
 
+    public static BizException operationNotAllowed(String message) {
+        return new BizException(ErrorCode.OPERATION_NOT_ALLOWED, message, 200);
+    }
+
+    public static BizException modelNotAvailable() {
+        return new BizException(ErrorCode.MODEL_NOT_AVAILABLE, "模型不存在或已禁用", 200);
+    }
+
     public static BizException knowledgeBaseNotFound() {
         return new BizException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在", 404);
     }
 
     public static BizException forbiddenResource() {
-        return new BizException(ErrorCode.FORBIDDEN_RESOURCE, "无权访问该知识库", 403);
+        return new BizException(ErrorCode.FORBIDDEN, "无权访问该知识库", 403);
     }
 }

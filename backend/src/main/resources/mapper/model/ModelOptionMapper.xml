@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.cbt.wenqu.backend.modules.model.mapper.ModelOptionMapper">
+  <select id="findEnabled" resultType="xyz.cbt.wenqu.backend.modules.model.vo.ModelOptionVO">
+    SELECT id, name, type, is_default AS "isDefault"
+    FROM llm_model
+    WHERE enabled = true
+    <if test="type != null">AND type = #{type}</if>
+    ORDER BY is_default DESC, name ASC, id ASC
+  </select>
+</mapper>

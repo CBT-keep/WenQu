@@ -2,12 +2,15 @@ package xyz.cbt.wenqu.backend.modules.kb.controller;
 
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import xyz.cbt.wenqu.backend.common.PageResult;
 import xyz.cbt.wenqu.backend.common.Result;
 import xyz.cbt.wenqu.backend.common.log.OpLog;
 import xyz.cbt.wenqu.backend.modules.kb.dto.DocumentListQueryDTO;
+import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseCreateDTO;
 import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseQueryDTO;
 import xyz.cbt.wenqu.backend.modules.kb.service.KnowledgeBaseService;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
@@ -22,6 +25,16 @@ import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
 public class KnowledgeBaseController {
 
     private final KnowledgeBaseService service;
+
+    /**
+     * 创建知识库
+     */
+    @OpLog(type = "knowledge-base", action = "创建知识库")
+    @PostMapping
+    public ResponseEntity<Result<KnowledgeBaseListVO>> createKnowledgeBase(
+            @Valid @RequestBody KnowledgeBaseCreateDTO dto, Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(service.createKnowledgeBase(dto, authentication)));
+    }
 
     /** 
      * 知识库列表 

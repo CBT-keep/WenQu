@@ -2,6 +2,8 @@ package xyz.cbt.wenqu.backend.modules.user.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -89,7 +91,12 @@ public class UserServiceImpl implements UserService {
         user.setCreatedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
 
-        userManageMapper.insert(user);
+        try {
+            userManageMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            // 预查只能改善提示，数据库唯一约束仍需覆盖并发创建。
+            throw BizException.usernameTaken();
+        }
         SysUser saved = user;
         audit("USER_CREATE", saved.getUsername(), "创建用户，角色 " + saved.getRole());
         return new UserCreateVO(UserVO.from(saved), passwordProvided ? null : plain);
@@ -119,7 +126,7 @@ public class UserServiceImpl implements UserService {
             }
             // 防自锁：自己的角色不可变更（既不能降级，也不能以任何方式变更）
             if (id.equals(currentUserId())) {
-                throw BizException.badRequest("不能变更自己的角色");
+                throw BizException.operationNotAllowed("不能变更自己的角色");
             }
             user.setRole(dto.getRole());
         }
@@ -143,7 +150,11 @@ public class UserServiceImpl implements UserService {
             throw BizException.cannotDeleteSelf();
         }
         SysUser user = userManageMapper.findById(id).orElseThrow(BizException::userNotFound);
-        userManageMapper.deleteById(id);
+        try {
+            if (userManageMapper.deleteById(id) == 0) throw BizException.userNotFound();
+        } catch (DataIntegrityViolationException e) {
+            throw BizException.operationNotAllowed("用户仍被其他资源引用，请先清理关联资源");
+        }
         audit("USER_DELETE", user.getUsername(), "删除用户");
     }
 
@@ -165,11 +176,11 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public ResetPasswordVO resetPassword(Long id, String newPassword) {
         if (id.equals(currentUserId())) {
-            throw BizException.badRequest("不能重置自己的密码，请在「修改密码」中自行修改");
+            throw BizException.operationNotAllowed("不能重置自己的密码，请在「修改密码」中自行修改");
         }
         SysUser user = userManageMapper.findById(id).orElseThrow(BizException::userNotFound);
         if ("SUPERADMIN".equals(user.getRole())) {
-            throw BizException.badRequest("超级管理员密码不可重置，请其本人在「修改密码」中修改");
+            throw BizException.operationNotAllowed("超级管理员密码不可重置，请其本人在「修改密码」中修改");
         }
         String plain = (newPassword == null || newPassword.isBlank())
                 ? generateTempPassword()
@@ -200,7 +211,7 @@ public class UserServiceImpl implements UserService {
      */
     private void assertNotSelfDisabled(Long id, String status) {
         if ("DISABLED".equals(status) && id.equals(currentUserId())) {
-            throw BizException.badRequest("不能禁用自己的账号");
+            throw BizException.operationNotAllowed("不能禁用自己的账号");
         }
     }
 

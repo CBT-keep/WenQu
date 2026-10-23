@@ -64,3 +64,8 @@ export function fetchModelOptions(type?: ModelType): Promise<ModelOption[]> {
   if (mockEnabled('model')) return mockDelay(mock.mockModelOptions(type))
   return unwrap(http.get<ApiResponse<ModelOption[]>>('/models/options', { params: { type } }))
 }
+
+/** 知识库配置必须引用后端真实模型 ID，不能使用模型模块的演示数据。 */
+export function fetchRealModelOptions(type?: ModelType): Promise<ModelOption[]> {
+  return unwrap(http.get<ApiResponse<ModelOption[]>>('/models/options', { params: { type } }))
+}

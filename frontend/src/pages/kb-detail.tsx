@@ -47,7 +47,7 @@ import { btnGhost, btnPrimary, btnPrimarySm, inputCls, rowBtn, rowBtnDanger, tag
 import type { ChunkItem, DocumentItem, DocumentQuery, KbUpdatePayload, KnowledgeBase, RetrievalMode } from '@/types'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
-import { fetchModelOptions } from '@/api/model'
+import { fetchRealModelOptions } from '@/api/model'
 
 const ACTIVE_DOC_STATUS = ['PENDING', 'PARSING', 'CHUNKING', 'EMBEDDING']
 
@@ -555,8 +555,8 @@ function ConfigModal({
   })
 
   const [form, setForm] = useState(initialForm)
-  const embeddingModels = useQuery({ queryKey: ['model-options', 'EMBEDDING'], queryFn: () => fetchModelOptions('EMBEDDING') })
-  const rerankModels = useQuery({ queryKey: ['model-options', 'RERANK'], queryFn: () => fetchModelOptions('RERANK') })
+  const embeddingModels = useQuery({ queryKey: ['real-model-options', 'EMBEDDING'], queryFn: () => fetchRealModelOptions('EMBEDDING') })
+  const rerankModels = useQuery({ queryKey: ['real-model-options', 'RERANK'], queryFn: () => fetchRealModelOptions('RERANK') })
   const [formError, setFormError] = useState<string | null>(null)
   const saveMut = useMutation({
     mutationFn: () => {

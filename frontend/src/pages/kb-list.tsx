@@ -13,7 +13,7 @@ import { Alert, EmptyState, ErrorBlock, LoadingBlock } from '@/components/ui/fee
 import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { btnGhost, btnPrimary, inputCls } from '@/lib/styles'
 import { createKnowledgeBase, deleteKnowledgeBase, fetchKnowledgeBases } from '@/api/kb'
-import { fetchModelOptions } from '@/api/model'
+import { fetchRealModelOptions } from '@/api/model'
 import { toApiError } from '@/lib/http'
 import { formatTime, formatNumber } from '@/lib/format'
 import { KB_STATUS, RETRIEVAL_MODE } from '@/lib/status'
@@ -110,9 +110,8 @@ export default function KbListPage() {
       {createOpen && (
         <KbFormModal
           onClose={() => setCreateOpen(false)}
-          onCreated={(kb) => {
+          onCreated={() => {
             setCreateOpen(false)
-            navigate(`/kb/${kb.id}`)
           }}
         />
       )}
@@ -186,8 +185,8 @@ function KbFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const pushToast = useToastStore((s) => s.push)
   const queryClient = useQueryClient()
 
-  const embedQuery = useQuery({ queryKey: ['model-options', 'EMBEDDING'], queryFn: () => fetchModelOptions('EMBEDDING') })
-  const rerankQuery = useQuery({ queryKey: ['model-options', 'RERANK'], queryFn: () => fetchModelOptions('RERANK') })
+  const embedQuery = useQuery({ queryKey: ['real-model-options', 'EMBEDDING'], queryFn: () => fetchRealModelOptions('EMBEDDING') })
+  const rerankQuery = useQuery({ queryKey: ['real-model-options', 'RERANK'], queryFn: () => fetchRealModelOptions('RERANK') })
 
   const [form, setForm] = useState<KbCreatePayload>({
     name: '',
@@ -225,7 +224,9 @@ function KbFormModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       return
     }
     if (!effectiveEmbeddingId) {
-      setFormError('请先在「设置 → 模型配置」中添加 EMBEDDING 模型')
+      setFormError(embedQuery.error
+        ? `加载模型失败：${toApiError(embedQuery.error).message}`
+        : '数据库中没有可用的 EMBEDDING 模型，请先配置真实模型')
       return
     }
     if (form.rerankEnabled && !form.rerankModelId) { setFormError('请选择可用的重排模型'); return }

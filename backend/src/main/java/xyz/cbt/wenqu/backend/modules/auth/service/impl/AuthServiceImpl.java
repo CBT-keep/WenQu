@@ -10,6 +10,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import xyz.cbt.wenqu.backend.common.BizException;
@@ -99,8 +100,12 @@ public class AuthServiceImpl implements AuthService {
             throw BizException.refreshInvalid();
         }
 
-        LoginUser loginUser = (LoginUser) userDetailsService
-                .loadUserByUsername(jwtUtil.parseToken(refreshToken));
+        LoginUser loginUser;
+        try {
+            loginUser = (LoginUser) userDetailsService.loadUserByUsername(jwtUtil.parseToken(refreshToken));
+        } catch (UsernameNotFoundException e) {
+            throw BizException.refreshInvalid();
+        }
         if (!loginUser.isEnabled()) {
             throw BizException.accountDisabled();
         }
@@ -141,7 +146,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserVO me(Long userId) {
-        return authMapper.findUserById(userId).map(this::toUserVO).orElseThrow(BizException::badCredentials);
+        return authMapper.findUserById(userId).map(this::toUserVO).orElseThrow(BizException::tokenInvalid);
     }
 
     /**
@@ -150,7 +155,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserVO updateProfile(Long userId, UpdateProfileDTO dto) {
-        authMapper.findUserById(userId).orElseThrow(BizException::badCredentials);
+        authMapper.findUserById(userId).orElseThrow(BizException::tokenInvalid);
         authMapper.updateProfile(userId, dto.getNickname(), dto.getEmail());
         return me(userId);
     }
@@ -161,7 +166,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void changePassword(Long userId, ChangePasswordDTO dto) {
-        SysUser user = authMapper.findUserById(userId).orElseThrow(BizException::badCredentials);
+        SysUser user = authMapper.findUserById(userId).orElseThrow(BizException::tokenInvalid);
 
         if (!passwordEncoder.matches(dto.getOldPassword(), user.getPasswordHash())) {
             throw BizException.oldPasswordWrong();
