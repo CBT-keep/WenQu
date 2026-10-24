@@ -70,6 +70,7 @@
 | `401` | 未认证 / Token 失效 | `code=20003` |
 | `403` | 无权限 | `code=20006` |
 | `404` | 路径不存在 | `code=10002` |
+| `405` | 请求方法不支持 | `code=10004` |
 | `409` | 资源冲突 | `code=10003` |
 | `413` | 文件过大 | `code=40004` |
 | `500` | 服务端异常 | `code=99999` |
@@ -332,7 +333,6 @@ while (true) {
 |---|---|---|---|
 | GET | `/models` | 👑 | 模型列表 |
 | POST | `/models` | 👑 | 新增模型 |
-| GET | `/models/{id}` | 👑 | 模型详情 |
 | PUT | `/models/{id}` | 👑 | 编辑模型 |
 | DELETE | `/models/{id}` | 👑 | 删除模型 |
 | POST | `/models/{id}/test` | 👑 | 连通性测试（已保存） |
@@ -687,19 +687,19 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `name` | string | ✅ | 展示名，唯一 |
+| `name` | string | ✅ | 展示名，去除首尾空白后唯一，最多 64 字符 |
 | `type` | string | ✅ | `CHAT` / `EMBEDDING` / `RERANK` |
 | `provider` | string | ✅ | `openai` / `dashscope` / `custom` |
-| `baseUrl` | string | ✅ | 形如 `https://api.openai.com/v1` |
+| `baseUrl` | string | ✅ | 合法 HTTP(S) 基地址，最多 255 字符；不能含 URL 用户凭据、查询参数或片段，形如 `https://api.openai.com/v1` |
 | `apiKey` | string | ✅ | 明文传入，后端加密存储 |
-| `modelName` | string | ✅ | 调用参数中的 model |
-| `dimension` | int | EMBEDDING 必填 | 向量维度 |
-| `temperature` | number | 否 | 默认 0.7（CHAT） |
-| `maxTokens` | int | 否 | 默认 4096（CHAT） |
-| `timeoutMs` | int | 否 | 默认 60000 |
+| `modelName` | string | ✅ | 调用参数中的 model，最多 128 字符 |
+| `dimension` | int | EMBEDDING 必填 | 正整数；本期 EMBEDDING 必须为固定全局维度 1024，与数据库约束一致 |
+| `temperature` | number | 否 | 范围 0–2，最多两位小数；默认 0.7（CHAT） |
+| `maxTokens` | int | 否 | 正整数；默认 4096（CHAT） |
+| `timeoutMs` | int | 否 | 正整数；默认 60000 |
 | `isDefault` | bool | 否 | 默认 false |
 | `enabled` | bool | 否 | 默认 true |
-| `extraParams` | object | 否 | 供应商特有参数 |
+| `extraParams` | object | 否 | 供应商特有参数，默认 `{}`；不接受数组或标量 |
 
 ```json
 {
@@ -711,7 +711,21 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 ```
 
 **响应 201**：新模型对象（`apiKeyMasked`）。
-失败：`10003` 名称重复；`30004` 该类型已存在默认模型（当 `isDefault=true` 且已有默认）。
+API Key 使用 AES-256-GCM 加密后写入 `api_key_cipher`；密钥配置为 `wenqu.crypto.aes-key`（环境变量 `WENQU_AES_KEY`，32 字节随机密钥的 Base64）。请求参数不写入操作日志；响应仅提供 `apiKeyMasked`，不返回明文或密文。未配置或非法加密密钥属于服务端配置错误，不得降级为明文存储。
+
+失败码与 §1.3 / §1.5 保持一致：
+
+| HTTP | code | 场景 |
+|---|---|---|
+| `400` | `10001` | 必填字段缺失、非法枚举/URL/字段类型/数值范围，或 EMBEDDING 缺少 dimension |
+| `401` | `20003` | 未登录或 Token 无效 |
+| `403` | `20006` | 非 SUPERADMIN |
+| `409` | `10003` | 名称重复（包括并发创建） |
+| `200` | `30004` | `isDefault=true` 且该类型已有默认模型（包括并发创建）；不自动替换原默认模型，禁用的默认模型也计入冲突 |
+| `200` | `40006` | EMBEDDING 的正整数 dimension 与固定全局维度 1024 不一致 |
+| `500` | `99999` | 加密密钥缺失/非法或其他服务端异常 |
+
+失败时 `data=null`；名称与默认模型同时冲突时优先返回 `10003`。本接口仅保存配置，不发起外部模型调用，不返回连通性测试或调用错误码 `30002/30003`。
 
 ## 4.3 编辑 / 删除 / 设为默认
 
@@ -719,7 +733,18 @@ Header 带 Access Token；请求体可选带 `refreshToken`（若带则同时吊
 |---|---|
 | `PUT /models/{id}` | 字段同新增，均可选；`type` 不允许修改（需删除重建）；`apiKey` 不传则保留 |
 | `DELETE /models/{id}` | 若被知识库或会话引用（FK RESTRICT），返回 `10004` 并提示引用数；需先解除引用 |
-| `PUT /models/{id}/default` | 置为同类型默认（原默认为 false），请求体可为空 |
+| `PUT /models/{id}/default` | 将启用的目标模型置为同类型默认，在同一事务内取消原默认；请求体可为空 |
+
+编辑和删除均仅允许 `SUPERADMIN`。编辑成功返回 HTTP 200 + `code=0`，`data` 为完整模型对象；删除成功返回 HTTP 200 + `code=0`、`data=null`。模型列表已返回编辑所需的完整配置，前端直接使用列表项打开编辑弹窗，不提供独立模型详情接口。
+
+- 更新缺省或 null 的普通字段保留原值，显式传入空白字符串返回 `400 / 10001`；非 null 的 `type` 一律拒绝，返回 `400 / 10001`。`extraParams` 提供时必须是对象，传 `{}` 清空，数组/标量/JSON null 均返回 `400 / 10001`。
+- `apiKey` 缺省或 null 时保留原密文，不执行解密；提供新值时重新加密。任何响应与操作日志均不包含明文或密文。
+- 名称唯一性和默认模型冲突检查排除当前模型；同名返回 `409 / 10003`，同类型默认模型冲突返回 `200 / 30004`。传 `isDefault=false` 可以取消当前默认；编辑不会自动替换其他默认模型。
+- 专用 `PUT /models/{id}/default` 仅允许 `SUPERADMIN`，无需请求体，也接受 `{}`。成功返回 `200 / 0`，data 为带 `apiKeyMasked` 的完整目标模型；重复设置当前默认幂等成功。同类型原默认自动取消，其他类型不受影响；不存在或已禁用返回 `200 / 30001`，非法 id 返回 `400 / 10001`，未登录/无权限分别返回 `401 / 20003`、`403 / 20006`。新增默认、编辑默认标记与专用切换共用类型事务锁；切换失败整体回滚，不会单独丢失原默认。
+- EMBEDDING 的 dimension 提供时仍须为 1024；正整数但维度不符返回 `200 / 40006`，非正数返回 `400 / 10001`。
+- 修改 EMBEDDING 的 `provider/baseUrl/modelName/extraParams` 且值实际变化时，锁定绑定知识库；任一绑定库正在 `INDEXING` 则返回 `200 / 10004`。否则在同一事务中更新模型，并将存在分片的绑定库标记 `index_stale=true`，待重建后恢复。仅改名称、密钥或其他非向量空间参数不新增失效；未变化的配置不触发失效。
+- 删除前统计以 embedding/rerank 引用该模型的知识库数量和以 chat 模型引用它的会话数量，若非零则返回 `200 / 10004`，message 提示两类引用数；不级联删除引用资源。行锁与数据库外键共同防止并发创建引用后误删。
+- `id` 非正数或类型非法返回 `400 / 10001`；模型不存在返回 `200 / 30001`。未登录、非 SUPERADMIN 分别返回 `401 / 20003`、`403 / 20006`。所有失败响应 `data=null`。
 
 ## 4.4 连通性测试（已保存）
 

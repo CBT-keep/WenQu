@@ -2,6 +2,12 @@ spring:
   application:
     name: backend
 
+  config:
+    # 本地测试配置不入库；兼容从仓库根目录或 backend 目录启动。
+    import:
+      - optional:file:./.wenqu-data/local.properties
+      - optional:file:../.wenqu-data/local.properties
+
   # 本地基础设施由 docker-compose.yml 提供：
   #   PostgreSQL 16 + pgvector → localhost:5432
   #   Redis 7                  → localhost:6379
@@ -28,6 +34,11 @@ jwt:
 
 server:
   port: 8080
+
+wenqu:
+  crypto:
+    # 32 字节随机密钥的 Base64；由环境变量注入，禁止使用明文存储降级
+    aes-key: ${WENQU_AES_KEY:}
 
 logging:
   level:

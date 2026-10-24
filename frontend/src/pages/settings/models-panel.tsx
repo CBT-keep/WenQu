@@ -42,7 +42,11 @@ export function ModelsPanel() {
     queryFn: () => fetchModels(),
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['models'] })
+  const invalidate = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['models'] }),
+    queryClient.invalidateQueries({ queryKey: ['model-options'] }),
+    queryClient.invalidateQueries({ queryKey: ['real-model-options'] }),
+  ])
 
   const testMut = useMutation({
     mutationFn: (id: number) => testModel(id),
@@ -139,7 +143,7 @@ export function ModelsPanel() {
                   编辑
                 </Button>
                 {!m.isDefault && (
-                  <Button variant="outline" onClick={() => defaultMut.mutate(m.id)}>
+                  <Button variant="outline" onClick={() => defaultMut.mutate(m.id)} disabled={defaultMut.isPending || !m.enabled}>
                     设为默认
                   </Button>
                 )}

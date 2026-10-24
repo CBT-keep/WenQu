@@ -15,9 +15,12 @@ import xyz.cbt.wenqu.backend.modules.kb.dto.KnowledgeBaseQueryDTO;
 import xyz.cbt.wenqu.backend.modules.kb.service.KnowledgeBaseService;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseOptionVO;
+
+import java.util.List;
 
 /**
- * 数据库相关业务控制器
+ * 知识库相关业务控制器
  */
 @RestController
 @RequestMapping("/api/v1/knowledge-bases")
@@ -25,6 +28,15 @@ import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
 public class KnowledgeBaseController {
 
     private final KnowledgeBaseService service;
+
+    /** 
+     * 知识库下拉选项
+     */
+    @OpLog(type = "knowledge-base", action = "知识库选项", recordArgs = false)
+    @GetMapping("/options")
+    public Result<List<KnowledgeBaseOptionVO>> options(Authentication authentication) {
+        return Result.ok(service.listOptions(authentication));
+    }
 
     /**
      * 创建知识库

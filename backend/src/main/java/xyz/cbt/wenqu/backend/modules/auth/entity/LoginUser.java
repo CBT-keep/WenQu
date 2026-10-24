@@ -55,6 +55,11 @@ public class LoginUser implements UserDetails {
         return user.getId();
     }
 
+    public boolean isAdministrator() {
+        String role = user.getRole();
+        return "ADMIN".equals(role) || "SUPERADMIN".equals(role);
+    }
+
     public boolean isMustChangePassword() {
         return Boolean.TRUE.equals(user.getMustChangePassword());
     }

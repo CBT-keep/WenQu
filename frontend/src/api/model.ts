@@ -1,4 +1,4 @@
-import { ApiError, http, unwrap } from '@/lib/http'
+import { http, unwrap } from '@/lib/http'
 import { mockEnabled, mockDelay } from '@/lib/mock'
 import type { ApiResponse } from '@/types/api'
 import type { LlmModel, ModelOption, ModelPayload, ModelTestResult, ModelType, ModelUpdatePayload } from '@/types/model'
@@ -7,36 +7,18 @@ import * as mock from '@/mock/model'
 /** 模型配置 API —— doc/04 第四部分。 */
 
 export function fetchModels(params: { type?: ModelType; enabled?: boolean } = {}): Promise<LlmModel[]> {
-  if (mockEnabled('model')) return mockDelay(mock.mockModelList(params.type, params.enabled))
   return unwrap(http.get<ApiResponse<LlmModel[]>>('/models', { params }))
 }
 
-export function fetchModel(id: number): Promise<LlmModel> {
-  if (mockEnabled('model')) {
-    const m = mock.mockModelDetail(id)
-    return m ? mockDelay(m) : Promise.reject(new ApiError(30001, '模型不存在或已禁用'))
-  }
-  return unwrap(http.get<ApiResponse<LlmModel>>(`/models/${id}`))
-}
-
 export function createModel(payload: ModelPayload): Promise<LlmModel> {
-  if (mockEnabled('model')) return mockDelay(mock.mockModelCreate(payload))
   return unwrap(http.post<ApiResponse<LlmModel>>('/models', payload))
 }
 
 export function updateModel(id: number, payload: ModelUpdatePayload): Promise<LlmModel> {
-  if (mockEnabled('model')) {
-    const m = mock.mockModelUpdate(id, payload)
-    return m ? mockDelay(m) : Promise.reject(new ApiError(30001, '模型不存在或已禁用'))
-  }
   return unwrap(http.put<ApiResponse<LlmModel>>(`/models/${id}`, payload))
 }
 
 export async function deleteModel(id: number): Promise<null> {
-  if (mockEnabled('model')) {
-    mock.mockModelDelete(id)
-    return mockDelay(null)
-  }
   return unwrap(http.delete<ApiResponse<null>>(`/models/${id}`))
 }
 
@@ -53,15 +35,10 @@ export function testModelDraft(payload: ModelPayload): Promise<ModelTestResult> 
 }
 
 export function setDefaultModel(id: number): Promise<LlmModel> {
-  if (mockEnabled('model')) {
-    const m = mock.mockModelSetDefault(id)
-    return m ? mockDelay(m) : Promise.reject(new ApiError(30001, '模型不存在或已禁用'))
-  }
   return unwrap(http.put<ApiResponse<LlmModel>>(`/models/${id}/default`))
 }
 
 export function fetchModelOptions(type?: ModelType): Promise<ModelOption[]> {
-  if (mockEnabled('model')) return mockDelay(mock.mockModelOptions(type))
   return unwrap(http.get<ApiResponse<ModelOption[]>>('/models/options', { params: { type } }))
 }
 

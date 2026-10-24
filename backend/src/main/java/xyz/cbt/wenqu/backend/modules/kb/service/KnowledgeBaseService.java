@@ -22,6 +22,7 @@ import xyz.cbt.wenqu.backend.modules.kb.mapper.DocumentListProjection;
 import xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseListProjection;
 import xyz.cbt.wenqu.backend.modules.kb.vo.DocumentListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseOptionVO;
 
 import java.util.List;
 import java.util.Set;
@@ -36,6 +37,16 @@ public class KnowledgeBaseService {
     private final KnowledgeBaseMapper mapper;
     private final ObjectMapper objectMapper;
     private static final List<String> DEFAULT_SEPARATORS = List.of("\n\n", "\n", "。", "！", "？", "；", " ", "");
+
+    /** 
+     * 下拉选项不分页，归属范围与知识库列表保持一致
+     */
+    @Transactional(readOnly = true)
+    public List<KnowledgeBaseOptionVO> listOptions(Authentication authentication) {
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        Long ownerId = loginUser.isAdministrator() ? null : loginUser.getUserId();
+        return mapper.findOptions(ownerId);
+    }
 
     /**
      * 创建知识库，校验参数合法性，返回创建后的知识库信息
@@ -163,9 +174,7 @@ public class KnowledgeBaseService {
         }
 
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
-        String role = loginUser.getUser().getRole();
-        boolean administrator = "ADMIN".equals(role) || "SUPERADMIN".equals(role);
-        Long effectiveOwnerId = administrator
+        Long effectiveOwnerId = loginUser.isAdministrator()
                 ? query.getOwnerId() : loginUser.getUserId();
 
         try (Page<KnowledgeBaseListProjection> result = PageHelper.startPage(page, size)) {
@@ -198,8 +207,7 @@ public class KnowledgeBaseService {
         Long ownerId = mapper.findKnowledgeBaseOwner(kbId);
         if (ownerId == null) throw BizException.knowledgeBaseNotFound();
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
-        String role = loginUser.getUser().getRole();
-        if (!"ADMIN".equals(role) && !"SUPERADMIN".equals(role) && !ownerId.equals(loginUser.getUserId())) {
+        if (!loginUser.isAdministrator() && !ownerId.equals(loginUser.getUserId())) {
             throw BizException.forbiddenResource();
         }
         String kw = keyword == null || keyword.isBlank() ? null : keyword.trim();

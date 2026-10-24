@@ -81,10 +81,6 @@ export function mockModelList(type?: string, enabled?: boolean) {
   return list
 }
 
-export function mockModelDetail(id: number): LlmModel | undefined {
-  return mockModels.find((m) => m.id === id)
-}
-
 export function mockModelCreate(payload: ModelPayload): LlmModel {
   const created: LlmModel = {
     id: ++modelSeq,
@@ -123,14 +119,6 @@ export function mockModelDelete(id: number): boolean {
   if (i < 0) return false
   mockModels.splice(i, 1)
   return true
-}
-
-export function mockModelSetDefault(id: number): LlmModel | null {
-  const m = mockModels.find((x) => x.id === id)
-  if (!m) return null
-  clearDefault(m.type, m.id)
-  m.isDefault = true
-  return m
 }
 
 export function mockModelOptions(type?: string): ModelOption[] {

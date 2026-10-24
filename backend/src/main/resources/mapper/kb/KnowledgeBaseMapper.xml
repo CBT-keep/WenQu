@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseMapper">
+  <select id="findOptions" resultType="xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseOptionVO">
+    SELECT id, name, status, chunk_count AS "chunkCount"
+    FROM kb_knowledge_base
+    WHERE status IN ('READY', 'INDEXING')
+    <if test="ownerId != null">AND owner_id = #{ownerId}</if>
+    ORDER BY updated_at DESC, id DESC
+  </select>
   <select id="findKnowledgeBaseOwner" resultType="java.lang.Long">
     SELECT owner_id FROM kb_knowledge_base WHERE id = #{kbId}
   </select>

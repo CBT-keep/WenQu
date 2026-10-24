@@ -2,10 +2,16 @@ package xyz.cbt.wenqu.backend.modules.kb.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseOptionVO;
 import java.util.List;
 
 @Mapper
 public interface KnowledgeBaseMapper {
+
+    /**
+     * 查询知识库下拉选项
+     */
+    List<KnowledgeBaseOptionVO> findOptions(@Param("ownerId") Long ownerId);
 
     /**
      * 查询知识库的所有者
