@@ -89,4 +89,41 @@
   </select>
 
 
+  <select id="findConfig" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseConfigProjection">
+    SELECT chunk_size AS "chunkSize", chunk_overlap AS "chunkOverlap", separators::text AS "separatorsJson",
+           index_stale AS "indexStale", EXISTS(SELECT 1 FROM kb_chunk WHERE kb_id = #{kbId}) AS "hasChunks"
+    FROM kb_knowledge_base WHERE id = #{kbId}
+  </select>
+  <select id="lockKnowledgeBase" resultType="java.lang.Long">
+    SELECT owner_id FROM kb_knowledge_base WHERE id = #{kbId} FOR UPDATE
+  </select>
+  <update id="updateKnowledgeBase">
+    UPDATE kb_knowledge_base SET name = #{value.name}, description = #{value.description},
+      embedding_model_id = #{value.embeddingModelId}, rerank_model_id = #{value.rerankModelId},
+      chunk_size = #{value.chunkSize}, chunk_overlap = #{value.chunkOverlap},
+      separators = CAST(#{value.separatorsJson} AS jsonb), retrieval_mode = #{value.retrievalMode},
+      vector_weight = #{value.vectorWeight}, bm25_weight = #{value.bm25Weight},
+      rerank_enabled = #{value.rerankEnabled}, top_k = #{value.topK}, score_threshold = #{value.scoreThreshold},
+      index_stale = #{indexStale}
+    WHERE id = #{kbId}
+  </update>
+  <select id="findStats" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.KnowledgeBaseStatsProjection">
+    SELECT count(*) AS "docCount", COALESCE(sum(file_size), 0) AS "storageBytes",
+           max(updated_at) FILTER (WHERE status = 'READY') AS "lastIndexedAt",
+           (SELECT count(*) FROM kb_chunk WHERE kb_id = #{kbId}) AS "chunkCount",
+           (SELECT COALESCE(round(avg(token_count), 2), 0) FROM kb_chunk WHERE kb_id = #{kbId}) AS "avgChunkTokens",
+           (SELECT COALESCE(jsonb_object_agg(status, total), '{}'::jsonb)::text
+              FROM (SELECT status, count(*) AS total FROM kb_document WHERE kb_id = #{kbId} GROUP BY status) counts) AS "docStatusJson"
+    FROM kb_document WHERE kb_id = #{kbId}
+  </select>
+  <select id="findDocumentKnowledgeBase" resultType="java.lang.Long">
+    SELECT kb_id FROM kb_document WHERE id = #{docId}
+  </select>
+  <select id="searchChunks" resultType="xyz.cbt.wenqu.backend.modules.kb.mapper.ChunkProjection">
+    SELECT id, chunk_index AS "chunkIndex", token_count AS "tokenCount", content,
+           embedding IS NOT NULL AS "hasEmbedding", metadata::text AS "metadataJson", created_at AS "createdAt"
+    FROM kb_chunk WHERE document_id = #{docId}
+    <if test="keyword != null">AND content ILIKE '%' || #{keyword} || '%'</if>
+    ORDER BY chunk_index, id
+  </select>
 </mapper>

@@ -3,6 +3,16 @@ package xyz.cbt.wenqu.backend.modules.kb.service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import jakarta.validation.Validator;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseDetailVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseStatsVO;
+import java.util.Objects;
+import xyz.cbt.wenqu.backend.modules.kb.dto.ChunkQueryDTO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.ChunkVO;
+import xyz.cbt.wenqu.backend.modules.kb.mapper.ChunkProjection;
+import java.util.LinkedHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.core.Authentication;
@@ -36,6 +46,10 @@ public class KnowledgeBaseService {
     private static final Set<String> KNOWLEDGE_BASE_STATUSES = Set.of("EMPTY", "INDEXING", "READY");
     private final KnowledgeBaseMapper mapper;
     private final ObjectMapper objectMapper;
+    private final Validator validator;
+    private static final Set<String> UPDATE_FIELDS = Set.of("name", "description", "embeddingModelId",
+            "rerankModelId", "chunkSize", "chunkOverlap", "separators", "retrievalMode", "vectorWeight",
+            "bm25Weight", "rerankEnabled", "topK", "scoreThreshold", "visibility");
     private static final List<String> DEFAULT_SEPARATORS = List.of("\n\n", "\n", "。", "！", "？", "；", " ", "");
 
     /** 
@@ -53,6 +67,22 @@ public class KnowledgeBaseService {
      */
     @Transactional
     public KnowledgeBaseListVO createKnowledgeBase(KnowledgeBaseCreateDTO dto, Authentication authentication) {
+        LoginUser user = (LoginUser) authentication.getPrincipal();
+        var value = validateConfiguration(dto, user.getUserId());
+        checkName(value.name(), value.ownerId(), null);
+        try {
+            long id = mapper.insertKnowledgeBase(value);
+            return KnowledgeBaseListVO.from(mapper.findKnowledgeBase(id));
+        } catch (DuplicateKeyException e) {
+            throw nameConflict();
+        }
+    }
+
+    /**
+     * 校验知识库配置参数的合法性
+     */
+    private KnowledgeBaseInsert validateConfiguration(KnowledgeBaseCreateDTO dto, long ownerId) {
+        if (!validator.validate(dto).isEmpty()) throw BizException.badRequest("知识库名称、描述或模型参数不合法");
         // 取值并校验合法性
         String name = dto.getName().trim();
         String description = dto.getDescription();
@@ -110,20 +140,139 @@ public class KnowledgeBaseService {
             throw BizException.badRequest("visibility 仅支持 PRIVATE");
         }
 
-        LoginUser user = (LoginUser) authentication.getPrincipal();
-        long ownerId = user.getUserId();
-        if (mapper.findIdByNameAndOwner(name, ownerId) != null) {
-            throw new BizException(ErrorCode.RESOURCE_CONFLICT, "同一归属人下知识库名称已存在", 409);
+        return new KnowledgeBaseInsert(name, description, dto.getEmbeddingModelId(), rerankModelId,
+                chunkSize, chunkOverlap, objectMapper.writeValueAsString(separators), mode,
+                vectorWeight, bm25Weight, rerankEnabled, topK, threshold, ownerId);
+    }
+
+    @Transactional(readOnly = true)
+    public KnowledgeBaseDetailVO detail(long kbId, Authentication authentication) {
+        checkAccess(kbId, authentication);
+        return readDetail(kbId);
+    }
+
+    private KnowledgeBaseDetailVO readDetail(long kbId) {
+        var row = mapper.findKnowledgeBase(kbId);
+        var config = mapper.findConfig(kbId);
+        if (row == null || config == null) throw BizException.knowledgeBaseNotFound();
+        List<String> separators = objectMapper.readValue(config.separatorsJson(),
+                objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
+        return KnowledgeBaseDetailVO.from(row, config.chunkSize(), config.chunkOverlap(), separators,
+                config.indexStale() && config.hasChunks());
+    }
+
+    /** 
+     * 编辑知识库，支持部分字段更新，返回更新后的知识库信息
+     */
+    @Transactional
+    public KnowledgeBaseDetailVO update(long kbId, JsonNode patch, Authentication authentication) {
+        if (kbId <= 0) throw BizException.badRequest("kbId 必须为正数");
+        Long ownerId = mapper.lockKnowledgeBase(kbId);
+        checkOwner(ownerId, authentication);
+        if (patch == null || !patch.isObject()) throw BizException.badRequest("请求体必须为对象");
+        for (var entry : patch.properties()) {
+            if (!UPDATE_FIELDS.contains(entry.getKey())) throw BizException.badRequest("不支持更新字段 " + entry.getKey());
+            validatePatchValue(entry.getKey(), entry.getValue());
         }
+        var current = readDetail(kbId);
+        ObjectNode merged = objectMapper.createObjectNode();
+        JsonNode original = objectMapper.valueToTree(current);
+        for (String field : UPDATE_FIELDS) merged.set(field, original.get(field));
+        for (var entry : patch.properties()) merged.set(entry.getKey(), entry.getValue());
+        KnowledgeBaseCreateDTO dto;
         try {
-            long id = mapper.insertKnowledgeBase(new KnowledgeBaseInsert(name, description,
-                    dto.getEmbeddingModelId(), rerankModelId, chunkSize, chunkOverlap,
-                    objectMapper.writeValueAsString(separators), mode, vectorWeight, bm25Weight,
-                    rerankEnabled, topK, threshold, ownerId));
-            return KnowledgeBaseListVO.from(mapper.findKnowledgeBase(id));
-        } catch (DuplicateKeyException e) {
-            throw new BizException(ErrorCode.RESOURCE_CONFLICT, "同一归属人下知识库名称已存在", 409);
+            dto = objectMapper.treeToValue(merged, KnowledgeBaseCreateDTO.class);
+        } catch (tools.jackson.core.JacksonException e) {
+            throw BizException.badRequest("知识库配置参数类型不合法");
         }
+        var value = validateConfiguration(dto, ownerId);
+        boolean indexChanged = !Objects.equals(current.embeddingModelId(), value.embeddingModelId())
+                || current.chunkSize() != value.chunkSize() || current.chunkOverlap() != value.chunkOverlap()
+                || !objectMapper.readTree(value.separatorsJson()).equals(original.get("separators"));
+        if (indexChanged && "INDEXING".equals(current.status())) {
+            throw BizException.operationNotAllowed("索引期间不能修改向量模型或切分参数");
+        }
+        checkName(value.name(), ownerId, kbId);
+        var config = mapper.findConfig(kbId);
+        boolean stale = config.hasChunks() && (config.indexStale() || indexChanged);
+        if (patch.isEmpty()) return current;
+        try {
+            mapper.updateKnowledgeBase(kbId, value, stale);
+        } catch (DuplicateKeyException e) {
+            throw nameConflict();
+        }
+        return readDetail(kbId);
+    }
+
+    /**
+     * 知识库统计信息，包含文档数、内容块数、存储大小、索引时间、平均分片长度、文档状态分布
+     */
+    @Transactional(readOnly = true)
+    public KnowledgeBaseStatsVO stats(long kbId, Authentication authentication) {
+        checkAccess(kbId, authentication);
+        var row = mapper.findStats(kbId);
+        var statuses = new LinkedHashMap<String, Long>();
+        objectMapper.readTree(row.docStatusJson()).properties().forEach(entry ->
+                statuses.put(entry.getKey(), entry.getValue().asLong()));
+        return new KnowledgeBaseStatsVO(row.docCount(), row.chunkCount(), statuses, row.storageBytes(),
+                row.lastIndexedAt(), row.avgChunkTokens());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<ChunkVO> listChunks(long docId, ChunkQueryDTO query, Authentication authentication) {
+        if (docId <= 0 || query.getPage() < 1 || query.getSize() < 1 || query.getSize() > MAX_PAGE_SIZE) {
+            throw BizException.badRequest("docId、page 或 size 参数不合法(size 最大为 100)");
+        }
+        Long kbId = mapper.findDocumentKnowledgeBase(docId);
+        if (kbId == null) throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "文档不存在", 404);
+        checkAccess(kbId, authentication);
+        String keyword = query.getKeyword() == null || query.getKeyword().isBlank() ? null : query.getKeyword().trim();
+        try (Page<ChunkProjection> page = PageHelper.startPage(query.getPage(), query.getSize())) {
+            List<ChunkVO> records = mapper.searchChunks(docId, keyword).stream().map(row -> new ChunkVO(
+                    row.id(), row.chunkIndex(), row.tokenCount(), row.content(), row.hasEmbedding(),
+                    row.metadataJson() == null ? null : objectMapper.readTree(row.metadataJson()), row.createdAt())).toList();
+            return PageResult.of(query.getPage(), query.getSize(), page.getTotal(), records);
+        }
+    }
+
+    /**
+     * 校验 patch 中的字段值是否合法
+     */
+    private void validatePatchValue(String field, JsonNode value) {
+        if (value.isNull()) {
+            if (!Set.of("description", "rerankModelId").contains(field)) throw BizException.badRequest(field + " 不允许为 null");
+            return;
+        }
+        boolean valid = switch (field) {
+            case "name", "description", "retrievalMode", "visibility" -> value.isTextual();
+            case "embeddingModelId", "rerankModelId" -> value.isIntegralNumber() && value.canConvertToLong();
+            case "chunkSize", "chunkOverlap", "topK" -> value.isIntegralNumber() && value.canConvertToInt();
+            case "vectorWeight", "bm25Weight", "scoreThreshold" -> value.isNumber();
+            case "rerankEnabled" -> value.isBoolean();
+            case "separators" -> value.isArray() && value.valueStream().allMatch(JsonNode::isTextual);
+            default -> false;
+        };
+        if (!valid) throw BizException.badRequest(field + " 参数类型不合法");
+    }
+
+    private void checkName(String name, long ownerId, Long currentId) {
+        Long existing = mapper.findIdByNameAndOwner(name, ownerId);
+        if (existing != null && !existing.equals(currentId)) throw nameConflict();
+    }
+
+    private BizException nameConflict() {
+        return new BizException(ErrorCode.RESOURCE_CONFLICT, "同一归属人下知识库名称已存在", 409);
+    }
+
+    private void checkAccess(long kbId, Authentication authentication) {
+        if (kbId <= 0) throw BizException.badRequest("kbId 必须为正数");
+        checkOwner(mapper.findKnowledgeBaseOwner(kbId), authentication);
+    }
+
+    private void checkOwner(Long ownerId, Authentication authentication) {
+        if (ownerId == null) throw BizException.knowledgeBaseNotFound();
+        LoginUser user = (LoginUser) authentication.getPrincipal();
+        if (!user.isAdministrator() && !ownerId.equals(user.getUserId())) throw BizException.forbiddenResource();
     }
 
     /**

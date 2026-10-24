@@ -18,6 +18,9 @@ import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseListVO;
 import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseOptionVO;
 
 import java.util.List;
+import tools.jackson.databind.JsonNode;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseDetailVO;
+import xyz.cbt.wenqu.backend.modules.kb.vo.KnowledgeBaseStatsVO;
 
 /**
  * 知识库相关业务控制器
@@ -56,6 +59,34 @@ public class KnowledgeBaseController {
     public Result<PageResult<KnowledgeBaseListVO>> listKnowledgeBases(
             @Valid @ModelAttribute KnowledgeBaseQueryDTO query, Authentication authentication) {
         return Result.ok(service.listKnowledgeBases(query, authentication));
+    }
+
+    /**
+     * 知识库详情
+     */
+    @OpLog(type = "knowledge-base", action = "知识库详情", recordArgs = false)
+    @GetMapping("/{kbId}")
+    public Result<KnowledgeBaseDetailVO> detail(@PathVariable long kbId, Authentication authentication) {
+        return Result.ok(service.detail(kbId, authentication));
+    }
+
+    /**
+     * 编辑知识库
+     */
+    @OpLog(type = "knowledge-base", action = "编辑知识库")
+    @PutMapping("/{kbId}")
+    public Result<KnowledgeBaseDetailVO> update(@PathVariable long kbId, @RequestBody JsonNode patch,
+                                               Authentication authentication) {
+        return Result.ok(service.update(kbId, patch, authentication));
+    }
+
+    /**
+     * 知识库统计
+     */
+    @OpLog(type = "knowledge-base", action = "知识库统计", recordArgs = false)
+    @GetMapping("/{kbId}/stats")
+    public Result<KnowledgeBaseStatsVO> stats(@PathVariable long kbId, Authentication authentication) {
+        return Result.ok(service.stats(kbId, authentication));
     }
 
     /**

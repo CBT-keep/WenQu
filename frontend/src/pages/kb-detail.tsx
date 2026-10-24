@@ -44,16 +44,22 @@ import { toApiError } from '@/lib/http'
 import { formatBytes, formatNumber, formatTime } from '@/lib/format'
 import { DOC_STATUS, KB_STATUS, RETRIEVAL_MODE } from '@/lib/status'
 import { btnGhost, btnPrimary, btnPrimarySm, inputCls, rowBtn, rowBtnDanger, tagCol, tagColWide } from '@/lib/styles'
-import type { ChunkItem, DocumentItem, DocumentQuery, KbUpdatePayload, KnowledgeBase, RetrievalMode } from '@/types'
+import type { ChunkItem, DocumentItem, DocumentQuery, KbUpdatePayload, KnowledgeBaseDetail, RetrievalMode } from '@/types'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
+import { mockEnabled } from '@/lib/mock'
 import { fetchRealModelOptions } from '@/api/model'
 
 const ACTIVE_DOC_STATUS = ['PENDING', 'PARSING', 'CHUNKING', 'EMBEDDING']
 
 export default function KbDetailPage() {
   const { id } = useParams()
-  const kbId = Number(id)
+  return <KbDetailContent key={id} kbId={Number(id)} />
+}
+
+function KbDetailContent({ kbId }: { kbId: number }) {
+  const validId = Number.isSafeInteger(kbId) && kbId > 0
+  const documentActionsAvailable = mockEnabled('kb')
   const navigate = useNavigate()
   const pushToast = useToastStore((s) => s.push)
   const queryClient = useQueryClient()
@@ -68,16 +74,24 @@ export default function KbDetailPage() {
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [reindexOpen, setReindexOpen] = useState(false)
 
-  const kbQuery = useQuery({ queryKey: ['kb', kbId], queryFn: () => fetchKnowledgeBase(kbId) })
-  const statsQuery = useQuery({ queryKey: ['kb-stats', kbId], queryFn: () => fetchKbStats(kbId) })
+  const kbQuery = useQuery({
+    queryKey: ['kb', kbId], queryFn: () => fetchKnowledgeBase(kbId), enabled: validId,
+    refetchInterval: (query) => query.state.data?.status === 'INDEXING' ? 3000 : false,
+  })
+  const statsQuery = useQuery({
+    queryKey: ['kb-stats', kbId], queryFn: () => fetchKbStats(kbId), enabled: kbQuery.isSuccess,
+    refetchInterval: (query) => kbQuery.data?.status === 'INDEXING' ||
+      ACTIVE_DOC_STATUS.some((status) => (query.state.data?.docStatus[status] ?? 0) > 0) ? 3000 : false,
+  })
   const docsQuery = useQuery({
     queryKey: ['docs', kbId, docQuery],
+    enabled: kbQuery.isSuccess,
     queryFn: () => fetchDocuments(kbId, docQuery),
     placeholderData: keepPreviousData,
     // 有非终态文档时每 3s 轮询（doc/04 附录 §5）
     refetchInterval: (query) => {
       const records = query.state.data?.records ?? []
-      return records.some((d) => ACTIVE_DOC_STATUS.includes(d.status)) ? 3000 : false
+      return kbQuery.data?.status === 'INDEXING' || records.some((d) => ACTIVE_DOC_STATUS.includes(d.status)) ? 3000 : false
     },
   })
 
@@ -149,6 +163,7 @@ export default function KbDetailPage() {
 
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: ['kbs'] })
+    queryClient.invalidateQueries({ queryKey: ['kb-options'] })
     queryClient.invalidateQueries({ queryKey: ['docs', kbId] })
     queryClient.invalidateQueries({ queryKey: ['kb-stats', kbId] })
     queryClient.invalidateQueries({ queryKey: ['kb', kbId] })
@@ -163,8 +178,8 @@ export default function KbDetailPage() {
       kb
         ? [
             ['切分策略', '递归字符'],
-            ['块大小', `${kb.chunkSize ?? 800} tokens`],
-            ['重叠', String(kb.chunkOverlap ?? 120)],
+            ['块大小', `${kb.chunkSize} tokens`],
+            ['重叠', String(kb.chunkOverlap)],
             ['检索方式', `${RETRIEVAL_MODE[kb.retrievalMode]}（${kb.vectorWeight}/${kb.bm25Weight}）`],
             ['TopK / 阈值', `${kb.topK} / ${kb.scoreThreshold}`],
             ['重排', kb.rerankEnabled ? '已启用' : '未启用'],
@@ -173,8 +188,15 @@ export default function KbDetailPage() {
     [kb],
   )
 
+  if (!validId) return <ErrorBlock className="h-full" message="知识库地址无效，请返回知识库列表重新进入" />
   if (kbQuery.isLoading) return <LoadingBlock className="h-full" />
-  if (kbQuery.error || !kb) return <ErrorBlock className="h-full" message={toApiError(kbQuery.error).message} />
+  if (kbQuery.error || !kb) return (
+    <div className="p-6">
+      <button type="button" className={btnGhost} onClick={() => navigate('/kb')}>返回知识库</button>
+      <ErrorBlock message={toApiError(kbQuery.error).message} />
+      <Button variant="outline" onClick={() => void kbQuery.refetch()}>重新加载</Button>
+    </div>
+  )
 
   const status = KB_STATUS[kb.status] ?? KB_STATUS.EMPTY
 
@@ -205,14 +227,15 @@ export default function KbDetailPage() {
                 <Settings2 />
                 编辑知识库
               </Button>
-              <Button variant="outline" size="lg" onClick={() => setReindexOpen(true)}>
+              <Button variant="outline" size="lg" disabled={!documentActionsAvailable || kb.status === 'INDEXING'} title={!documentActionsAvailable ? '暂未开放' : undefined} onClick={() => setReindexOpen(true)}>
                 <RefreshCw />
                 重建索引
               </Button>
               <button
                 type="button"
                 className={btnPrimary}
-                disabled={uploadMut.isPending}
+                disabled={!documentActionsAvailable || uploadMut.isPending}
+                title={!documentActionsAvailable ? '暂未开放' : undefined}
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploadMut.isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
@@ -234,12 +257,15 @@ export default function KbDetailPage() {
           }
         />
 
+        {kb.needReindex && <Alert tone="warn" className="mb-4">模型或切分配置已变更，现有分片需要重建索引后才能用于检索。</Alert>}
+        {statsQuery.error && <Alert tone="error" className="mb-4">统计加载失败：{toApiError(statsQuery.error).message} <button type="button" className="underline" onClick={() => void statsQuery.refetch()}>重试</button></Alert>}
+
         {/* 概览指标 */}
         <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <Metric label="文档总数" value={formatNumber(statsQuery.data?.docCount ?? kb.docCount)} />
           <Metric label="分片总数" value={formatNumber(statsQuery.data?.chunkCount ?? kb.chunkCount)} />
-          <Metric label="平均分片大小" value={String(statsQuery.data?.avgChunkTokens ?? 0)} unit="tokens" />
-          <Metric label="占用存储" value={formatBytes(statsQuery.data?.storageBytes)} />
+          <Metric label="平均分片大小" value={statsQuery.data ? String(statsQuery.data.avgChunkTokens) : '—'} unit="tokens" />
+          <Metric label="占用存储" value={statsQuery.data ? formatBytes(statsQuery.data.storageBytes) : '—'} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
@@ -295,8 +321,8 @@ export default function KbDetailPage() {
             ) : records.length === 0 ? (
               <EmptyState
                 icon={<FileText className="size-5" />}
-                title="还没有文档"
-                description="上传 PDF / Word / Markdown / TXT / HTML，系统会异步完成解析、切分与向量化。"
+                title={docQuery.keyword || docQuery.status ? '没有匹配的文档' : '还没有文档'}
+                description={docQuery.keyword || docQuery.status ? '请调整搜索关键词或状态筛选。' : '此知识库尚未添加文档。'}
               />
             ) : (
               <div className="overflow-x-auto">
@@ -305,6 +331,7 @@ export default function KbDetailPage() {
                     <tr>
                       <th className="w-9 border-b border-line bg-bg-section px-4 py-2.5">
                         <input
+                          disabled={!documentActionsAvailable}
                           type="checkbox"
                           checked={allChecked}
                           onChange={(e) =>
@@ -333,6 +360,7 @@ export default function KbDetailPage() {
                         <tr key={doc.id} className="border-b border-line last:border-0 hover:bg-bg-hover/60">
                           <td className="px-4 py-3">
                             <input
+                              disabled={!documentActionsAvailable}
                               type="checkbox"
                               checked={selected.includes(doc.id)}
                               onChange={(e) =>
@@ -379,15 +407,16 @@ export default function KbDetailPage() {
                                 </button>
                               )}
                               {doc.status === 'FAILED' && (
-                                <button type="button" className={rowBtn} onClick={() => retryMut.mutate(doc.id)}>
+                                <button type="button" className={cn(rowBtn, 'disabled:cursor-not-allowed disabled:opacity-40')} disabled={!documentActionsAvailable || retryMut.isPending} onClick={() => retryMut.mutate(doc.id)}>
                                   <RotateCcw className="mr-1 inline size-3" />
                                   重试
                                 </button>
                               )}
                               <button
                                 type="button"
-                                className={rowBtn}
-                                title="下载原文件"
+                                className={cn(rowBtn, 'disabled:cursor-not-allowed disabled:opacity-40')}
+                                disabled={!documentActionsAvailable}
+                                title={documentActionsAvailable ? "下载原文件" : "暂未开放"}
                                 onClick={() =>
                                   downloadDocument(doc).catch((e) => pushToast(toApiError(e).message))
                                 }
@@ -395,11 +424,11 @@ export default function KbDetailPage() {
                                 <Download className="size-3.5" />
                               </button>
                               {doc.status === 'READY' && (
-                                <button type="button" className={rowBtn} onClick={() => reindexDocMut.mutate(doc.id)}>
+                                <button type="button" className={cn(rowBtn, 'disabled:cursor-not-allowed disabled:opacity-40')} disabled={!documentActionsAvailable || reindexDocMut.isPending} onClick={() => reindexDocMut.mutate(doc.id)}>
                                   重建
                                 </button>
                               )}
-                              <button type="button" className={rowBtnDanger} onClick={() => setDeleting(doc)}>
+                              <button type="button" className={cn(rowBtnDanger, 'disabled:cursor-not-allowed disabled:opacity-40')} disabled={!documentActionsAvailable} onClick={() => setDeleting(doc)}>
                                 删除
                               </button>
                             </div>
@@ -439,7 +468,8 @@ export default function KbDetailPage() {
             </Panel>
             <Panel title="文档状态分布">
               <div className="space-y-2 text-[13.5px]">
-                {Object.entries(DOC_STATUS).map(([key, style]) => {
+                {!statsQuery.data && <p className="text-ink-3">{statsQuery.isPending ? '加载中…' : '暂无法获取状态分布'}</p>}
+                {statsQuery.data && Object.entries(DOC_STATUS).map(([key, style]) => {
                   const count = statsQuery.data?.docStatus?.[key] ?? 0
                   if (count === 0 && key !== 'READY') return null
                   return (
@@ -456,7 +486,10 @@ export default function KbDetailPage() {
       </div>
 
       {configOpen && (
-        <ConfigModal kb={kb} onClose={() => setConfigOpen(false)} onSaved={invalidateAll} />
+        <ConfigModal kb={kb} onClose={() => setConfigOpen(false)} onSaved={(updated) => {
+          queryClient.setQueryData(['kb', kbId], updated)
+          invalidateAll()
+        }} />
       )}
       {chunkDoc && <ChunkModal doc={chunkDoc} onClose={() => setChunkDoc(null)} />}
 
@@ -534,18 +567,18 @@ function ConfigModal({
   onClose,
   onSaved,
 }: {
-  kb: KnowledgeBase
+  kb: KnowledgeBaseDetail
   onClose: () => void
-  onSaved: () => void
+  onSaved: (updated: KnowledgeBaseDetail) => void
 }) {
   const pushToast = useToastStore((s) => s.push)
   const [initialForm] = useState({
     embeddingModelId: kb.embeddingModelId,
-    rerankModelId: kb.rerankModelId ?? undefined,
+    rerankModelId: kb.rerankModelId ?? null,
     name: kb.name,
     description: kb.description ?? '',
-    chunkSize: kb.chunkSize ?? 800,
-    chunkOverlap: kb.chunkOverlap ?? 120,
+    chunkSize: kb.chunkSize,
+    chunkOverlap: kb.chunkOverlap,
     retrievalMode: kb.retrievalMode,
     vectorWeight: kb.vectorWeight,
     bm25Weight: kb.bm25Weight,
@@ -569,7 +602,7 @@ function ConfigModal({
     },
     onSuccess: (res) => {
       pushToast(res.needReindex ? '已保存；切分/模型变更需重建索引才生效' : '已保存')
-      onSaved()
+      onSaved(res)
       onClose()
     },
     onError: (e) => setFormError(toApiError(e).message),
@@ -588,10 +621,12 @@ function ConfigModal({
     try {
       const advancedChanged = (Object.keys(form) as (keyof typeof form)[]).some((key) => key !== 'name' && key !== 'description' && form[key] !== initialForm[key])
       if (advancedChanged) {
-      if (form.chunkSize <= 0 || form.chunkOverlap < 0 || form.chunkOverlap >= form.chunkSize) throw new Error('重叠必须非负且小于块大小')
-      if (form.rerankEnabled && !form.rerankModelId) throw new Error('请选择重排模型')
-      if (Math.abs(form.vectorWeight + form.bm25Weight - 1) > 0.000001) throw new Error('两项权重之和必须为 1')
-      if (kb.status === 'INDEXING' && (form.embeddingModelId !== kb.embeddingModelId || form.chunkSize !== (kb.chunkSize ?? 800) || form.chunkOverlap !== (kb.chunkOverlap ?? 120))) throw new Error('索引期间不能修改模型或切分参数')
+        if (!Number.isInteger(form.chunkSize) || !Number.isInteger(form.chunkOverlap) || form.chunkSize <= 0 || form.chunkOverlap < 0 || form.chunkOverlap >= form.chunkSize) throw new Error('段落长度与重叠必须为整数，重叠必须非负且小于段落长度')
+        if (!Number.isInteger(form.topK) || form.topK <= 0) throw new Error('参考片段数量必须为正整数')
+        if (!Number.isFinite(form.scoreThreshold) || form.scoreThreshold < 0 || form.scoreThreshold > 1) throw new Error('相似度阈值须在 0 到 1 之间')
+        if (form.rerankEnabled && !form.rerankModelId) throw new Error('请选择重排模型')
+        if ([form.vectorWeight, form.bm25Weight].some((weight) => !Number.isFinite(weight) || weight < 0 || weight > 1) || Math.abs(form.vectorWeight + form.bm25Weight - 1) > 0.000001) throw new Error('两项权重须在 0 到 1 之间，且和为 1')
+        if (kb.status === 'INDEXING' && (form.embeddingModelId !== kb.embeddingModelId || form.chunkSize !== kb.chunkSize || form.chunkOverlap !== kb.chunkOverlap)) throw new Error('索引期间不能修改模型或切分参数')
       }
     } catch (e) { setFormError(e instanceof Error ? e.message : '配置无效'); return }
     saveMut.mutate()
@@ -641,7 +676,7 @@ function ConfigModal({
           </Select>
         </Field>
         <Field label="重排模型">
-          <Select value={form.rerankModelId ?? ''} onChange={(e) => setForm((f) => ({ ...f, rerankModelId: Number(e.target.value) || undefined }))}>
+          <Select value={form.rerankModelId ?? ''} onChange={(e) => setForm((f) => ({ ...f, rerankModelId: Number(e.target.value) || null }))}>
             <option value="">请选择</option>
             {kb.rerankModelId && !rerankModels.data?.some((m) => m.id === kb.rerankModelId) && <option value={kb.rerankModelId}>当前模型 {kb.rerankModelId}</option>}
             {rerankModels.data?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -653,6 +688,7 @@ function ConfigModal({
           <Input
             type="number"
             value={form.chunkSize}
+            disabled={kb.status === 'INDEXING'}
             onChange={(e) => setForm((f) => ({ ...f, chunkSize: Number(e.target.value) }))}
             className={inputCls}
           />
@@ -661,6 +697,7 @@ function ConfigModal({
           <Input
             type="number"
             value={form.chunkOverlap}
+            disabled={kb.status === 'INDEXING'}
             onChange={(e) => setForm((f) => ({ ...f, chunkOverlap: Number(e.target.value) }))}
             className={inputCls}
           />
@@ -801,7 +838,7 @@ function ChunkModal({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
                 <Tag tone="gray">#{c.chunkIndex}</Tag>
                 <span>{c.tokenCount} tokens</span>
                 <span>{c.hasEmbedding ? '已向量化' : '未向量化'}</span>
-                <div className="ml-auto flex gap-0.5">
+                {mockEnabled('kb') && <div className="ml-auto flex gap-0.5">
                   <button
                     type="button"
                     className={rowBtn}
@@ -815,7 +852,7 @@ function ChunkModal({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
                   <button type="button" className={rowBtnDanger} onClick={() => setRemoving(c)}>
                     删除
                   </button>
-                </div>
+                </div>}
               </div>
               {editing?.id === c.id ? (
                 <div>

@@ -42,9 +42,40 @@ public interface KnowledgeBaseMapper {
     long insertKnowledgeBase(KnowledgeBaseInsert value);
 
     /**
-     * 插入文档
+     * 查询知识库
      */
     KnowledgeBaseListProjection findKnowledgeBase(@Param("kbId") long kbId);
+
+    /**
+     * 查询知识库的配置
+     */
+    KnowledgeBaseConfigProjection findConfig(@Param("kbId") long kbId);
+
+    /**
+     * 锁定知识库
+     */
+    Long lockKnowledgeBase(@Param("kbId") long kbId);
+
+    /**
+     * 更新知识库
+     */
+    int updateKnowledgeBase(@Param("kbId") long kbId, @Param("value") KnowledgeBaseInsert value,
+                           @Param("indexStale") boolean indexStale);
+
+    /**
+     * 查询文档所属的知识库
+     */
+    Long findDocumentKnowledgeBase(@Param("docId") long docId);
+
+    /**
+     * 查询文档的内容块
+     */
+    List<ChunkProjection> searchChunks(@Param("docId") long docId, @Param("keyword") String keyword);
+
+    /**
+     * 查询知识库的统计信息
+     */
+    KnowledgeBaseStatsProjection findStats(@Param("kbId") long kbId);
 
     /**
      * 查询知识库列表

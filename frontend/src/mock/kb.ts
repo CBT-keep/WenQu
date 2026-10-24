@@ -8,7 +8,7 @@ import type {
   KbQuery,
   KbStats,
   KbUpdatePayload,
-  KnowledgeBase,
+  KnowledgeBaseDetail,
   ReindexPayload,
   RetrievalReference,
   RetrievalRequest,
@@ -32,7 +32,7 @@ let kbSeq = 3
 let docSeq = 200
 let chunkSeq = 2000
 
-export const mockKbs: KnowledgeBase[] = [
+export const mockKbs: KnowledgeBaseDetail[] = [
   {
     id: 1,
     name: '产品手册知识库',
@@ -48,6 +48,8 @@ export const mockKbs: KnowledgeBase[] = [
     bm25Weight: 0.4,
     chunkSize: 800,
     chunkOverlap: 120,
+    separators: ["\n\n", "\n", "。", "！", "？", "；", " ", ""],
+    needReindex: false,
     ownerId: 1,
     ownerName: 'admin',
     visibility: 'PRIVATE',
@@ -71,6 +73,8 @@ export const mockKbs: KnowledgeBase[] = [
     bm25Weight: 0.4,
     chunkSize: 800,
     chunkOverlap: 120,
+    separators: ["\n\n", "\n", "。", "！", "？", "；", " ", ""],
+    needReindex: false,
     ownerId: 1,
     ownerName: 'admin',
     visibility: 'PRIVATE',
@@ -94,6 +98,8 @@ export const mockKbs: KnowledgeBase[] = [
     bm25Weight: 0,
     chunkSize: 800,
     chunkOverlap: 120,
+    separators: ["\n\n", "\n", "。", "！", "？", "；", " ", ""],
+    needReindex: false,
     ownerId: 1,
     ownerName: 'admin',
     visibility: 'PRIVATE',
@@ -178,7 +184,7 @@ export function mockKbPage(q: KbQuery) {
   return paginate(list, q.page ?? 1, q.size ?? 20)
 }
 
-export function mockKbDetail(id: number): KnowledgeBase | undefined {
+export function mockKbDetail(id: number): KnowledgeBaseDetail | undefined {
   return mockKbs.find((k) => k.id === id)
 }
 
@@ -188,9 +194,9 @@ export function mockKbOptions(): KbOption[] {
     .map((k) => ({ id: k.id, name: k.name, status: k.status, chunkCount: k.chunkCount }))
 }
 
-export function mockKbCreate(payload: KbCreatePayload): KnowledgeBase {
+export function mockKbCreate(payload: KbCreatePayload): KnowledgeBaseDetail {
   const now = new Date().toISOString()
-  const created: KnowledgeBase = {
+  const created: KnowledgeBaseDetail = {
     id: ++kbSeq,
     name: payload.name,
     description: payload.description ?? '',
@@ -205,6 +211,7 @@ export function mockKbCreate(payload: KbCreatePayload): KnowledgeBase {
     bm25Weight: payload.bm25Weight ?? 0.4,
     chunkSize: payload.chunkSize ?? 800,
     chunkOverlap: payload.chunkOverlap ?? 120,
+    needReindex: false,
     separators: payload.separators ?? ["\n\n", "\n", "。", "！", "？", "；", " ", ""],
     ownerId: 1,
     ownerName: 'admin',
@@ -227,8 +234,11 @@ export function mockKbUpdate(id: number, payload: KbUpdatePayload) {
     (payload.chunkSize !== undefined && payload.chunkSize !== kb.chunkSize) ||
     (payload.chunkOverlap !== undefined && payload.chunkOverlap !== kb.chunkOverlap) ||
     (payload.separators !== undefined && JSON.stringify(payload.separators) !== JSON.stringify(kb.separators ?? ["\n\n", "\n", "。", "！", "？", "；", " ", ""]))
-  Object.assign(kb, payload, { updatedAt: new Date().toISOString() })
-  return { ...kb, needReindex }
+  Object.assign(kb, payload, {
+    updatedAt: new Date().toISOString(),
+    needReindex: kb.chunkCount > 0 && (kb.needReindex || needReindex),
+  })
+  return { ...kb }
 }
 
 export function mockKbDelete(id: number): boolean {

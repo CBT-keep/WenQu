@@ -22,9 +22,6 @@ export interface KnowledgeBase {
   scoreThreshold: number
   vectorWeight: number
   bm25Weight: number
-  chunkSize?: number
-  chunkOverlap?: number
-  separators?: string[]
   ownerId: number
   ownerName?: string
   visibility: Visibility
@@ -33,6 +30,13 @@ export interface KnowledgeBase {
   chunkCount: number
   createdAt: string
   updatedAt: string
+}
+
+export interface KnowledgeBaseDetail extends KnowledgeBase {
+  chunkSize: number
+  chunkOverlap: number
+  separators: string[]
+  needReindex: boolean
 }
 
 export interface KbStats {
@@ -70,11 +74,12 @@ export interface KbCreatePayload {
 }
 
 /** 更新知识库：字段同创建均可选；改切分/模型会返回 needReindex 提示（doc/04 §5.3） */
-export type KbUpdatePayload = Partial<KbCreatePayload>
-
-export interface KbUpdateResult extends KnowledgeBase {
-  needReindex?: boolean
+export type KbUpdatePayload = Partial<Omit<KbCreatePayload, 'description' | 'rerankModelId'>> & {
+  description?: string | null
+  rerankModelId?: number | null
 }
+
+export type KbUpdateResult = KnowledgeBaseDetail
 
 export interface DocumentItem {
   id: number

@@ -14,6 +14,7 @@ import type {
   KbUpdatePayload,
   KbUpdateResult,
   KnowledgeBase,
+  KnowledgeBaseDetail,
   ReindexPayload,
   ReindexResult,
   RetrievalRequest,
@@ -31,12 +32,12 @@ export function fetchKnowledgeBases(q: KbQuery): Promise<PageResult<KnowledgeBas
   return unwrap(http.get<ApiResponse<PageResult<KnowledgeBase>>>('/knowledge-bases', { params: q }))
 }
 
-export function fetchKnowledgeBase(id: number): Promise<KnowledgeBase> {
+export function fetchKnowledgeBase(id: number): Promise<KnowledgeBaseDetail> {
   if (mockEnabled('kb')) {
     const kb = mock.mockKbDetail(id)
     return kb ? mockDelay(kb) : Promise.reject(new ApiError(40001, '知识库不存在'))
   }
-  return unwrap(http.get<ApiResponse<KnowledgeBase>>(`/knowledge-bases/${id}`))
+  return unwrap(http.get<ApiResponse<KnowledgeBaseDetail>>(`/knowledge-bases/${id}`))
 }
 
 export function createKnowledgeBase(payload: KbCreatePayload): Promise<KnowledgeBase> {
