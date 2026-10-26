@@ -31,6 +31,13 @@
     FROM llm_model WHERE id = #{id}
   </select>
 
+  <select id="findConnection" resultType="xyz.cbt.wenqu.backend.modules.model.mapper.ModelConnectionProjection">
+    SELECT type, base_url AS "baseUrl", model_name AS "modelName", dimension, temperature,
+           max_tokens AS "maxTokens", timeout_ms AS "timeoutMs", enabled,
+           COALESCE(extra_params, '{}'::jsonb)::text AS "extraParamsJson", api_key_cipher AS "apiKeyCipher"
+    FROM llm_model WHERE id = #{id}
+  </select>
+
   <select id="findForUpdate" resultType="xyz.cbt.wenqu.backend.modules.model.mapper.ModelListProjection">
     SELECT <include refid="modelColumns"/>
     FROM llm_model WHERE id = #{id}

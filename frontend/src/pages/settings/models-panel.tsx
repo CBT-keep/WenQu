@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Seg } from '@/components/ui/seg'
 import { Button } from '@/components/ui/button'
-import { Alert, EmptyState, ErrorBlock, LoadingBlock } from '@/components/ui/feedback'
+import { Alert, EmptyState, ErrorBlock, LoadingBlock, Spinner } from '@/components/ui/feedback'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
 import {
   createModel,
@@ -23,7 +23,7 @@ import {
 import { toApiError } from '@/lib/http'
 import { MODEL_PROVIDER, MODEL_TYPE_TONE } from '@/lib/status'
 import { btnGhost, btnPrimary, inputCls } from '@/lib/styles'
-import type { LlmModel, ModelPayload, ModelType, ModelUpdatePayload } from '@/types'
+import type { LlmModel, ModelPayload, ModelTestResult, ModelType, ModelUpdatePayload } from '@/types'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +36,7 @@ export function ModelsPanel() {
   const [filter, setFilter] = useState<Filter>(ALL)
   const [formOpen, setFormOpen] = useState<'create' | LlmModel | null>(null)
   const [deleting, setDeleting] = useState<LlmModel | null>(null)
+  const [testFeedback, setTestFeedback] = useState<{ id: number; result?: ModelTestResult; error?: string } | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['models'],
@@ -49,9 +50,10 @@ export function ModelsPanel() {
   ])
 
   const testMut = useMutation({
-    mutationFn: (id: number) => testModel(id),
-    onSuccess: (res) => pushToast(res.success ? `连通正常 · ${res.latencyMs}ms` : '连通失败'),
-    onError: (e) => pushToast(toApiError(e).message),
+    mutationFn: (id: number) => testModel(id, data?.find((m) => m.id === id)?.timeoutMs),
+    onMutate: () => setTestFeedback(null),
+    onSuccess: (result, id) => setTestFeedback({ id, result }),
+    onError: (e, id) => setTestFeedback({ id, error: toApiError(e).message }),
   })
   const defaultMut = useMutation({
     mutationFn: (id: number) => setDefaultModel(id),
@@ -136,8 +138,9 @@ export function ModelsPanel() {
               </div>
 
               <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
-                <Button variant="outline" onClick={() => testMut.mutate(m.id)} disabled={testMut.isPending}>
-                  测试
+                <Button variant="outline" onClick={() => testMut.mutate(m.id)} disabled={testMut.isPending || !m.enabled}>
+                  {testMut.isPending && testMut.variables === m.id && <Spinner />}
+                  {testMut.isPending && testMut.variables === m.id ? '测试中…' : '测试'}
                 </Button>
                 <Button variant="outline" onClick={() => setFormOpen(m)}>
                   编辑
@@ -164,6 +167,10 @@ export function ModelsPanel() {
           ))}
         </div>
       )}
+
+      {testFeedback && <Modal open onClose={() => setTestFeedback(null)} title={`连通性测试 · ${data?.find((m) => m.id === testFeedback.id)?.name ?? '模型'}`}>
+        <TestFeedback result={testFeedback.result} error={testFeedback.error} />
+      </Modal>}
 
       {formOpen && (
         <ModelFormModal
@@ -205,11 +212,11 @@ function ModelFormModal({
 }) {
   const pushToast = useToastStore((s) => s.push)
   const isEdit = !!model
-  const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null)
+  const [testResult, setTestResult] = useState<{ result?: ModelTestResult; error?: string; fingerprint: string } | null>(null)
   const [extraParams, setExtraParams] = useState(JSON.stringify(model?.extraParams ?? {}))
   const [formError, setFormError] = useState<string | null>(null)
 
-  const [form, setForm] = useState<ModelPayload>({
+  const [initialForm] = useState<ModelPayload>({
     name: model?.name ?? '',
     type: model?.type ?? 'CHAT',
     provider: model?.provider ?? 'openai',
@@ -223,6 +230,10 @@ function ModelFormModal({
     isDefault: model?.isDefault ?? false,
     enabled: model?.enabled ?? true,
   })
+  const [form, setForm] = useState(initialForm)
+  const fingerprint = JSON.stringify([form, extraParams])
+  const testSaved = isEdit && JSON.stringify(form) === JSON.stringify(initialForm)
+    && extraParams === JSON.stringify(model?.extraParams ?? {})
 
   const isChat = form.type === 'CHAT'
   const isEmbedding = form.type === 'EMBEDDING'
@@ -255,10 +266,31 @@ function ModelFormModal({
   })
 
   const testMut = useMutation({
-    mutationFn: () => (isEdit ? testModel(model!.id) : testModelDraft({ ...form, extraParams: parseObject(extraParams) })),
-    onSuccess: (res) => setTestResult({ ok: res.success, detail: res.detail ?? `连通正常 · ${res.latencyMs}ms` }),
-    onError: (e) => setTestResult({ ok: false, detail: toApiError(e).message }),
+    mutationFn: (submission: { saved: boolean; payload: ModelPayload; fingerprint: string }) =>
+      submission.saved ? testModel(model!.id, model!.timeoutMs) : testModelDraft(submission.payload),
+    onMutate: () => setTestResult(null),
+    onSuccess: (result, submission) => setTestResult({ result, fingerprint: submission.fingerprint }),
+    onError: (e, submission) => setTestResult({ error: toApiError(e).message, fingerprint: submission.fingerprint }),
   })
+
+  function runTest() {
+    setFormError(null)
+    let params: Record<string, unknown>
+    try { params = parseObject(extraParams) } catch { setFormError('高级参数必须是合法的 JSON 对象'); return }
+    if (!testSaved && !form.apiKey.trim()) {
+      setFormError(isEdit ? '测试未保存的草稿需要填写 API Key；也可先保存后测试。' : '请输入 API Key')
+      return
+    }
+    if (!form.name.trim() || !form.baseUrl.trim() || !form.modelName.trim()) {
+      setFormError('请填写名称、Base URL 与模型名')
+      return
+    }
+    if (!Number.isInteger(form.timeoutMs) || (form.timeoutMs ?? 0) <= 0) {
+      setFormError('超时必须为正整数（ms）')
+      return
+    }
+    testMut.mutate({ saved: testSaved, payload: { ...form, extraParams: params }, fingerprint })
+  }
 
   function submit() {
     setFormError(null)
@@ -289,14 +321,14 @@ function ModelFormModal({
       width="max-w-[560px]"
       footer={
         <>
-          <button type="button" className={cn(btnGhost, 'mr-auto')} disabled={testMut.isPending} onClick={() => testMut.mutate()}>
-            <PlugZap className="size-4" />
-            连通性测试
+          <button type="button" className={cn(btnGhost, 'mr-auto')} disabled={testMut.isPending || saveMut.isPending} onClick={runTest}>
+            {testMut.isPending ? <Spinner /> : <PlugZap className="size-4" />}
+            {testMut.isPending ? '测试中…' : testSaved ? '测试已保存配置' : isEdit ? '测试当前草稿' : '连通性测试'}
           </button>
           <button type="button" className={btnGhost} onClick={onClose}>
             取消
           </button>
-          <button type="button" className={btnPrimary} disabled={saveMut.isPending} onClick={submit}>
+          <button type="button" className={btnPrimary} disabled={saveMut.isPending || testMut.isPending} onClick={submit}>
             {saveMut.isPending ? '保存中…' : isEdit ? '保存' : '添加'}
           </button>
         </>
@@ -332,7 +364,7 @@ function ModelFormModal({
         <Field label="Base URL" required>
           <Input value={form.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className={inputCls} />
         </Field>
-        <Field label="API Key" required={!isEdit} hint={isEdit ? '留空表示不修改' : '明文传入，后端 AES-GCM 加密存储'}>
+        <Field label="API Key" required={!isEdit} hint={isEdit ? '保存时留空保留原密钥；测试未保存的草稿需填写密钥' : '仅用于模型服务调用，保存时加密存储'}>
           <Input
             type="password"
             value={form.apiKey}
@@ -393,10 +425,21 @@ function ModelFormModal({
           <Switch checked={!!form.enabled} onChange={(v) => set('enabled', v)} aria-label="启用" />
         </div>
 
-        {testResult && <Alert tone={testResult.ok ? 'success' : 'error'}>{testResult.detail}</Alert>}
+        {testResult?.fingerprint === fingerprint && <TestFeedback result={testResult.result} error={testResult.error} />}
         <Field label="高级参数（JSON 对象）"><Input value={extraParams} onChange={(e) => setExtraParams(e.target.value)} /></Field>
         {formError && <Alert tone="error">{formError}</Alert>}
       </div>
     </Modal>
+  )
+}
+
+function TestFeedback({ result, error }: { result?: ModelTestResult; error?: string }) {
+  return (
+    <div aria-live="polite">
+      <Alert tone={error ? 'error' : 'success'}>
+        {error ?? `${result?.detail} · ${result?.latencyMs}ms`}
+      </Alert>
+      {result?.echo && <div className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-bg-section p-3 text-[13px] text-ink-2">{result.echo}</div>}
+    </div>
   )
 }

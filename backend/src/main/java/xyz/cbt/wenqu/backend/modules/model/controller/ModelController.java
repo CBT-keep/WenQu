@@ -21,6 +21,8 @@ import xyz.cbt.wenqu.backend.modules.model.dto.ModelQueryDTO;
 import xyz.cbt.wenqu.backend.modules.model.dto.ModelCreateDTO;
 import xyz.cbt.wenqu.backend.modules.model.dto.ModelUpdateDTO;
 import xyz.cbt.wenqu.backend.modules.model.service.ModelService;
+import xyz.cbt.wenqu.backend.modules.model.service.ModelConnectivityService;
+import xyz.cbt.wenqu.backend.modules.model.vo.ModelTestVO;
 import xyz.cbt.wenqu.backend.modules.model.vo.ModelListVO;
 import xyz.cbt.wenqu.backend.modules.model.vo.ModelOptionVO;
 
@@ -33,6 +35,27 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ModelController {
     private final ModelService service;
+    private final ModelConnectivityService connectivityService;
+
+    /**
+     * 模型连通性测试
+     */
+    @OpLog(type = "model", action = "模型连通性测试", recordArgs = false)
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PostMapping("/{id}/test")
+    public Result<ModelTestVO> test(@PathVariable long id) {
+        return Result.ok(connectivityService.testSaved(id));
+    }
+
+    /**
+     * 模型草稿连通性测试
+     */
+    @OpLog(type = "model", action = "模型草稿连通性测试", recordArgs = false)
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PostMapping("/test")
+    public Result<ModelTestVO> testDraft(@Valid @RequestBody ModelCreateDTO dto) {
+        return Result.ok(connectivityService.testDraft(dto));
+    }
 
     /** 
      * 设为同类型默认模型，请求体可为空

@@ -39,6 +39,11 @@ public interface ModelMapper {
     ModelListProjection findById(@Param("id") long id);
 
     /**
+     * 仅用于实际调用的配置快照，不进入列表或操作日志
+     */
+    ModelConnectionProjection findConnection(@Param("id") long id);
+
+    /**
      * 锁定模型，以供编辑或删除。
      */
     ModelListProjection findForUpdate(@Param("id") long id);

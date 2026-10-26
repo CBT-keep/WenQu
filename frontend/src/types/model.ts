@@ -43,10 +43,9 @@ export type ModelUpdatePayload = Partial<Omit<ModelPayload, 'type'>> & { type?: 
 export interface ModelTestResult {
   success: boolean
   latencyMs: number
-  modelName?: string
-  echo?: string
-  detail?: string
-  error?: string
+  modelName: string
+  echo?: string | null
+  detail: string
 }
 
 export interface ModelOption {

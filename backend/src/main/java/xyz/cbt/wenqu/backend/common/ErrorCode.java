@@ -18,6 +18,7 @@ public final class ErrorCode {
     public static final int OLD_PASSWORD_WRONG = 20007; // 原密码错误
 
     public static final int MODEL_NOT_AVAILABLE = 30001; // 模型不存在或已禁用
+    public static final int MODEL_TEST_FAILED = 30002; // 模型连通性测试失败
     public static final int MODEL_DEFAULT_EXISTS = 30004; // 该类型已存在默认模型
 
     public static final int KNOWLEDGE_BASE_NOT_FOUND = 40001; // 知识库不存在

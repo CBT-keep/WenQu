@@ -750,6 +750,8 @@ API Key 使用 AES-256-GCM 加密后写入 `api_key_cipher`；密钥配置为 `w
 
 `POST /api/v1/models/{id}/test` · 👑
 
+无需请求体（也接受 `{}`），只使用数据库当前保存的配置；不会使用编辑弹窗中未保存的值。非法 id 返回 `400 / 10001`，不存在或已禁用返回 `200 / 30001`。测试时临时解密 API Key，不更新模型、默认标记或知识库索引，也不在外部请求期间持有数据库事务或行锁。
+
 **响应 200**
 
 ```json
@@ -768,13 +770,27 @@ API Key 使用 AES-256-GCM 加密后写入 `api_key_cipher`；密钥配置为 `w
 
 失败：`30002`，`data=null`，脱敏错误明细放入 `message`。
 
-- CHAT：发送 `"ping"`，期望返回文本。
+- CHAT：发送 `"say 1"`，期望返回非空最终文本，不严格要求文本等于 `1`。
 - EMBEDDING：对 `"ping"` 求向量，校验返回维度 == 配置维度，否则 `40006`。
 - RERANK：对固定 query + 2 条文档重排，校验可返回分数。
+
+调用约定：
+
+- CHAT / EMBEDDING 在 `baseUrl` 后追加 `/chat/completions` / `/embeddings`，使用 Bearer 鉴权。Chat 使用非流式单条消息，输出预算使用配置的 `maxTokens`，未配置时默认 `4096`，不再限制为 64 tokens，以给思考模型保留生成最终回答的空间；高级参数可覆盖生成参数。Embedding 固定请求 `encoding_format=float`，校验数值向量；不强制发送 `dimensions`（供应商支持时可通过高级参数配置），返回长度必须与模型配置一致。
+- RERANK 默认在 `baseUrl` 后追加 `/rerank`，发送 `{model, query:"ping", documents:["ping","unrelated text"], top_n:2}`，要求 `{results:[{index,relevance_score}]}` 返回两条有效分数和不重复的 0/1 序号。`extraParams.rerank_path` 可自定义同一服务的接口路径：以 `/` 开头相对服务根目录，否则相对 `baseUrl`；如基地址为 `https://llm.example/v1`，默认地址及 `/v1/rerank` 均指向 `https://llm.example/v1/rerank`。路径不能指定其他服务、查询参数或片段；此配置不进入请求正文。其他供应商的原生重排协议需另行适配。
+- 其余 `extraParams` 透传请求正文，但不能覆盖本次探测的模型名、固定输入、Chat 非流式与单条结果、Embedding 浮点格式和 Rerank 的两条文档数量。配置 `max_completion_tokens` 时不同时发送 `max_tokens`。
+- Chat 响应的 `finish_reason=length` 表示输出预算耗尽，即使已有部分文本也返回 `30002` 并提示增加最大 Token；仅有非空 `reasoning_content` 而无最终文本时提示“仅返回思考内容”；缺失必要字段或字段类型不兼容时提示 Chat Completions 协议不兼容。空文本仍判失败，错误不回显思考内容或上游正文。
+- `timeoutMs` 覆盖连接、响应头和完整响应体；不自动重试，不跟随重定向，响应体上限为 1 MiB。HTTP 异常、网络/TLS 失败、超时、非法 JSON、空文本或无效向量/分数均返回 `200 / 30002`；向量维度错误返回 `200 / 40006`，所有失败 `data=null`。错误仅返回分类信息及 HTTP 状态，不透传上游正文；成功回显也会遮蔽 API Key。
+
+CHAT / EMBEDDING 的协议字段参考官方 [Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) 与 [Embeddings](https://developers.openai.com/api/reference/resources/embeddings/methods/create) 文档；RERANK 使用上述项目约定。
 
 ## 4.5 连通性测试（草稿）
 
 `POST /api/v1/models/test` · 👑 · 请求体同新增（无需先保存），便于"先测后用"。
+
+参数校验和成功/失败响应同新增规则及 §4.4；不检查名称或默认模型唯一性，也不保存草稿。`enabled` / `isDefault` 不影响本次草稿探测，可测试尚未启用的配置。请求中的 API Key 只用于这次调用，参数及凭据不写入操作日志。
+
+前端新建时测试当前草稿；编辑内容未变化时可测试已保存配置，留空 API Key 即使用服务端原密钥。编辑后测试当前草稿须重新填写 API Key（或先保存再测试），避免把旧配置的成功结果误认为草稿已通过。表单变化后隐藏旧测试结果，展示本次测试耗时、脱敏错误或 Chat 回显。前端请求超时按配置 `timeoutMs + 5000` 设置，避免默认 30 秒先于服务端结束。
 
 ## 4.6 模型下拉
 

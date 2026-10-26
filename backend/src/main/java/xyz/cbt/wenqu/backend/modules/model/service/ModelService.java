@@ -215,7 +215,7 @@ public class ModelService {
     /**
      * 基础字段约束由 DTO 校验，这里处理条件必填、维度与配置结构规则
      */
-    private void validateCreateRules(ModelCreateDTO dto) {
+    void validateCreateRules(ModelCreateDTO dto) {
         if (dto == null) throw BizException.badRequest("请求体不能为空");
         validateBaseUrl(dto.getBaseUrl().trim());
         if ("EMBEDDING".equals(dto.getType())) {
